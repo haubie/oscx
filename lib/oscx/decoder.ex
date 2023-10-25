@@ -9,6 +9,30 @@ defmodule OSCx.Decoder do
   > #### Tip {: .tip}
   >
   > Note that in practice you'll will likely not need to use this module directly and instead use `OSCx.decode/1`.
+
+  ## Automatically decoded types
+  The following types can be automatically decoded:
+
+  | Type tag | Unicode number | Type            | OSC spec version |
+  | -------- | -------------- | --------------- | ---------------- |
+  | i        | 105            | 32 bit integer  | 1.0+ required    |
+  | f        | 102            | 32 bit float    | 1.0+ required    |
+  | s        | 115            | String          | 1.0+ required    |
+  | b        | 98             | Blob            | 1.0+ required    |
+  | h        | 104            | 64-bit big-endian two’s complement integer | 1.0 non-standard |
+  | m        | 109            | 4 byte MIDI message | 1.0 non-standard |
+  | t        | 116            | OSC time tag    | 1.1+ required    |
+
+
+  The following string type tags can also be decoded using the `tag/1` function:
+
+  | Type tag | Unicode number | Type            | OSC spec version |
+  | -------- | -------------- | --------------- | ---------------- |
+  | T        | 84             | True (tag only, no arguments) | 1.1+ required |
+  | F        | 80             | False (tag only, no arguments) | 1.1+ required |
+  | N        | 78             | Null (tag only, no arguments) | 1.1+ required |
+  | I        | 73             | Impulse (tag only, no arguments) | 1.1+ required |
+
   """
   alias OSCx.Decoder
 
@@ -19,6 +43,15 @@ defmodule OSCx.Decoder do
   Takes the binary data from the message. This assumes that the address has been removed from the start of the OSC message, and only the tag type string and arguments are remaining:
 
   > <OSC address> + <OSC tag type string with padding> + <OSC arguments>
+
+  Special tag types such as the following are ignored by this function, as they're decoded separately:
+
+  | Type tag | Unicode number | Type            | OSC spec version |
+  | -------- | -------------- | --------------- | ---------------- |
+  | T        | 84             | True (tag only, no arguments) | 1.1+ required |
+  | F        | 80             | False (tag only, no arguments) | 1.1+ required |
+  | N        | 78             | Null (tag only, no arguments) | 1.1+ required |
+  | I        | 73             | Impulse (tag only, no arguments) | 1.1+ required |
 
   Returns a tuple with the first element containing the tags (with the leading comma removed), and the second element the remaining binary data with tag type string and it's padding removed.
   """
@@ -46,6 +79,18 @@ defmodule OSCx.Decoder do
   @doc """
   Decodes arguments from the binary.
 
+  Currently this automatically decodes the following argument types:
+
+  | Type tag | Unicode number | Type            | OSC spec version |
+  | -------- | -------------- | --------------- | ---------------- |
+  | i        | 105            | 32 bit integer  | 1.0+ required    |
+  | f        | 102            | 32 bit float    | 1.0+ required    |
+  | s        | 115            | String          | 1.0+ required    |
+  | b        | 98             | Blob            | 1.0+ required    |
+  | h        | 104            | 64-bit big-endian two’s complement integer | 1.0 non-standard |
+  | m        | 109            | 4 byte MIDI message | 1.0 non-standard |
+  | t        | 116            | OSC time tag    | 1.1+ required    |
+
   This function takes the following parameters:
   - List (charlist) of tag types (e.g. ?s for string, ?i for integer, etc)
   - Binary data, with the address and tag type string removed so that only argument data remains
@@ -53,18 +98,18 @@ defmodule OSCx.Decoder do
   Returns the arguments data as a list.
   """
   def decode_arg(tag_list, arg_data, acc \\ [])
-  def decode_arg([], _arg_data, acc), do: Enum.reverse(acc)
+  def decode_arg([], _arg_data, acc), do: Enum.reverse(acc) |> Enum.filter(&(&1 != :other))
   def decode_arg([tag | rest_tags]=_tag_list, arg_data, acc) do
-    IO.inspect(tag, label: "Decoding type")
-    IO.inspect(arg_data, label: "Arg data")
     {decoded_data, rest_arg_data} =
       case tag do
-        ?s -> Decoder.string(arg_data)
         ?i -> Decoder.integer(arg_data)
         ?f -> Decoder.float(arg_data)
-        # ?b -> Decoder.boolean(arg)
-        ?a -> Decoder.blob(arg_data)
-        nil -> raise "Invalid OSC type tag: #{tag}"
+        ?s -> Decoder.string(arg_data)
+        ?b -> Decoder.blob(arg_data)
+        ?h -> Decoder.integer_64bit(arg_data)
+        ?m -> Decoder.midi(arg_data)
+        ?t -> Decoder.time(arg_data)
+        other -> {:other, arg_data}
       end
 
     decode_arg(rest_tags, rest_arg_data, [decoded_data | acc])
@@ -78,6 +123,17 @@ defmodule OSCx.Decoder do
   """
   def integer(binary) do
     <<integer::big-size(32), rest::binary>> = binary
+    {integer, rest}
+  end
+
+  @doc section: :type
+  @doc """
+  Decodes a 64-bit integer from the head of the binary.
+
+  Returns a tuple with the first element the integer value, and the second element the remainding binary data.
+  """
+  def integer_64bit(binary) do
+    <<integer::big-size(64), rest::binary>>=binary
     {integer, rest}
   end
 
@@ -157,6 +213,75 @@ defmodule OSCx.Decoder do
     <<seconds::big-size(32), fraction::big-size(32), rest::binary>> = binary
     {%{seconds: seconds, fraction: fraction}, rest}
   end
+
+  @doc section: :type
+  @doc """
+  Extracts a MIDI message from the head of the binary.
+
+  This function assumes that the binary starts with a MIDI message.
+
+  Returns a tuple with the first element containg a map with a MIDI value `%{midi: value}`, and the second element the remaining binary data.
+  """
+  def midi(binary) do
+    <<value::binary-size(4), rest::binary>> = binary
+    {%{midi: value}, rest}
+  end
+
+
+  @doc section: :helper
+  @doc """
+  Parses a tag string for special tag types.
+
+  Takes a type tag string as the first parameter, with or without the leading comma.
+
+  Parses a tag string to check if any of the following special types are present:
+
+  | OSC string tag type | OSC character | Elixir type |
+  | True | T | true |
+  | False | F | false |
+  | Null | N | nil |
+  | Impulse | I | :impulse |
+
+  Return type is a list of zero or more of the above.
+
+  ## Example
+  ```
+  # Single 'true' type present
+  iex> Decoder.tag(",T")
+  [true]
+
+  # Single 'false' type present
+  iex> Decoder.tag(",F")
+  [false]
+
+  # Single 'null' type present, will return nil in Elixir
+  iex> Decoder.tag(",N")
+  [nil]
+
+  # Multiple special types given.
+  iex> Decoder.tag(",FTNI")
+  [false, true, nil, :impulse]
+
+   # No special types present, other tags ignored. Empty list is returned.
+  iex> Decoder.tag(",ifs")
+  []
+  ```
+  """
+  def tag(tag_type_string) do
+    String.to_charlist(tag_type_string)
+    |> Enum.map(fn char ->
+      case char do
+        ?, -> :ignore
+        ?T -> true
+        ?F -> false
+        ?N -> nil
+        ?I -> :impulse
+        _ -> :other
+      end
+    end)
+    |> Enum.filter(fn type -> type not in [:other, :ignore] end)
+  end
+
 
   @doc section: :helper
   @doc """

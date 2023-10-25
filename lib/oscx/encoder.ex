@@ -49,6 +49,7 @@ defmodule OSCx.Encoder do
   | s        | 115            | String          | 1.0+ required    |
   | b        | 98             | Blob            | 1.0+ required    |
   | h        | 104            | 64-bit big-endian two’s complement integer | 1.0 non-standard |
+  | m        | 109            | 4 byte MIDI message | 1.0 non-standard |
   | t        | 116            | OSC time tag    | 1.1+ required    |
   | T        | 84             | True (tag only, no arguments) | 1.1+ required |
   | F        | 80             | False (tag only, no arguments) | 1.1+ required |
@@ -78,6 +79,30 @@ defmodule OSCx.Encoder do
   ```
   """
 
+  ## ----------------
+  ## TIME GUARD
+  ## ----------------
+
+  @doc section: :helper
+  @doc """
+  Guard to test if a time map has been provided.
+  A time map is in the following format: `%{seconds: seconds, fraction: fraction}`.
+  """
+  defguard is_time_map(value) when is_map(value) and is_map_key(value, :seconds) and is_map_key(value, :fraction)
+
+  @doc section: :helper
+  @doc """
+  Guard to test if a MIDI map has been provided.
+  A MIDI map is in the following format: `%{midi: value}`.
+  The value is a 4-byte binary.
+  """
+  defguard is_midi_map(value) when is_map(value) and is_map_key(value, :midi)
+
+
+  ## ----------------
+  ## PRIMARY FUNCTION
+  ## ----------------
+
   @doc section: :primary
   @doc """
   Encodes an argument into its OSC type and value.
@@ -90,9 +115,15 @@ defmodule OSCx.Encoder do
   | Integer     | i            | 105            | 32 bit integer  |
   | Float       | f            | 102            | 32 bit float    |
   | String      | s            | 115            | String          |
+  | Atom        | s            | 115            | String          |
   | Bitstring   | b            | 98             | Blob            |
-  | -           | t            | 116            | OSC time tag    |
+  | Time map    | t            | 116            | OSC time tag    |
+  | MIDI map    | m            | 109            | 4-byte MIDI message |
   | Integer (64 bit) | h       | 104            | 64-bit big-endian two’s complement integer |
+
+  Note the:
+  - time map is in the format `%{seconds: seconds, fraction: fraction}` where seconds and fraction are 32-bit numbers.
+  - MIDI map is in the format `%{midi: value}` where the value is a 4 byte MIDI message.
 
   ## Return format
   The function will return a tuple with the first element containing the OSC type tag, and the second element the OSC encoded value such as `{105, <<0, 0, 0, 1>>}`.
@@ -131,11 +162,24 @@ defmodule OSCx.Encoder do
   ```
   """
   def encode_arg(value) when is_integer(value), do: integer(value)
-  def encode_arg(value) when is_integer(value), do: integer(value)
   def encode_arg(value) when is_float(value), do: float(value)
+  def encode_arg(value) when is_atom(value), do: to_string(value) |> encode_arg()
   def encode_arg(value) when is_bitstring(value), do: String.printable?(value) && string(value) || blob(value)
+  def encode_arg(value) when is_time_map(value), do: time(value)
+  def encode_arg(value) when is_midi_map(value), do: midi(value)
   def encode_arg(value) when is_list(value), do: Enum.map(value, &encode_arg(&1))
   def encode_arg(_value), do: {:error, "Unknown type"}
+
+
+  ## --------------
+  ## TYPE ENCODING
+  ## --------------
+
+  @doc section: :type
+  @doc """
+  Encodes a 4-byte MIDI message.
+  """
+  def midi(value), do: {?m, <<value::binary-size(4)>>}
 
   @doc section: :type
   @doc """
@@ -149,8 +193,13 @@ defmodule OSCx.Encoder do
   @doc section: :type
   @doc """
   OSC-timetag: 64 bit, big-endian, fixed-point floating point number
+
+  Takes a map in the format `%{seconds: seconds, fraction: fraction}`.
+
+  The OSC Specification defines a time tag as a 64-bit fixed-point number that represents a time in seconds since midnight on January 1, 1900.
+  The first 32 bits of the timetag represent the number of seconds, and the last 32 bits represent fractional parts of a second to a precision of about 200 picoseconds.
   """
-  def time(seconds, fraction), do: {?t, <<seconds::big-size(32), fraction::big-size(32)>>}
+  def time(%{seconds: seconds, fraction: fraction}), do: {?t, <<seconds::big-size(32), fraction::big-size(32)>>}
 
   @doc section: :type
   @doc """
@@ -185,6 +234,10 @@ defmodule OSCx.Encoder do
     |> List.to_string()
   end
 
+  ## --------------
+  ## TAG SPECIFIC
+  ## --------------
+
   @doc section: :tag
   @doc """
   Encode a tag based on an Elixir type or special atom.
@@ -198,6 +251,7 @@ defmodule OSCx.Encoder do
   | :null | Null | N |
   | :impulse | Impulse | I |
   """
+  def tag(values) when is_list(values), do: Enum.map(values, &tag(&1)) |> List.to_string()
   def tag(true), do: tag_true()
   def tag(false), do: tag_false()
   def tag(nil), do: tag_null()
@@ -237,7 +291,9 @@ defmodule OSCx.Encoder do
   def tag_impulse, do: ?I
 
 
+  ## -------
   ## HELPERS
+  ## -------
 
   @doc section: :helper
   @doc """
@@ -266,7 +322,8 @@ defmodule OSCx.Encoder do
   ## Default 32 bits for string and blobs, but packets are 64 bits
   def prefix_size(value, size \\ 32) do
     byte_size = :erlang.iolist_size(value)
-    [<<byte_size::big-size(size)>>, value]
+    <<byte_size::big-size(size)>> <> value
   end
+
 
 end

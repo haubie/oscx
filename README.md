@@ -47,7 +47,7 @@ Below is a summary of key OSC concepts:
   
   OSC uses the same format as 64-bit Internet NTP timestamps, where the first 32 bits specify the number of seconds since midnight on January 1, 1900, and the last 32 bits specify fractional parts of a second to a precision of about 200 picoseconds. 
 
-  See `OSCx.Encoder.time/2`
+  See `OSCx.Encoder.time/1`
 
 ## OSC messages
 OSC messages are made up of three parts:

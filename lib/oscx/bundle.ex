@@ -23,7 +23,7 @@ defmodule OSCx.Bundle do
     [
       "#bundle",
       0,
-      Encoder.time(time[:seconds], time[:fraction]),
+      Encoder.time(time),
       elements
     ]
   end
