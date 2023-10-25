@@ -1,6 +1,14 @@
 defmodule OSCx.Encoder do
   @moduledoc """
-  Encodes Elixir types into OSC data types.
+  Helpers to encode Elixir types into OSC data types.
+
+  This module contains helper functions used to encode supported Elixir types (see below) into OSC binary data.
+
+  To encode the full OSC data, these functions are chained together and are used by `OSCx.Message.encode/1` and `OSCx.Bundle.encode/1`.
+
+  > #### Tip {: .tip}
+  >
+  > Note that in practice you'll will likely not need to use this module directly and instead use `OSCx.encode/1`.
 
   At it's core, OSC has the following data types:
 
@@ -9,15 +17,23 @@ defmodule OSCx.Encoder do
   | **Integer** | a 32-bit signed integer |
   | **Float**   | a 32-bit IEEE 754 floating-point number |
   | **String**  | a sequence of printable ASCII characters |
-  | **Blob**    | a sequence of arbitrary binary data |
+  | **Blob**    | a sequence of arbitrary binary data, with its size prepended |
   | **Timetag** | a 64-bit fixed-point number that represents a time in seconds since midnight on January 1, 1900. The first 32 bits of the timetag represent the number of seconds, and the last 32 bits represent fractional parts of a second to a precision of about 200 picoseconds. |
 
   The above are considered 'required' types by the OSC spec, however, OSC can be extended to support additional or optional types.
 
   The main function in this module is `encode_arg/1`, which takes one of the recognised Elixir data types, and returns it as an OSC type.
 
+  ## Tag-specific types
+  Additionally the [OSC 1.1 Specification](https://opensoundcontrol.stanford.edu/spec-1_1.html) includes some types which carry no data arguments, but can be encoded directly into the tag type string. These are True, False, Null and Impluse.
+
+  See the [Tag specific](#tag-specific) functions below.
+
+  ## 4-byte boundaries
+  OSC data is aligned on 4-byte boundaries. 32-bit types like Integers and Floats are 4-bytes, but Strings and Blobs can be of an arbintary length. For this reason they may be padded with extra null characters (`<<0>>>` is used in Elixir) to make the total length a multiple of 4 bytes.
+
   ## Values returned
-  Most functions in this module return a tuple in the form `{type, value}`. These are defined as follows:
+  [Most functions](#type-functions) in this module return a tuple in the form `{type, value}`. These are defined as follows:
   - **type**: first element is an OSC type tag, which is a unicode charater representing the type
   - **value**: second element is the encoded OSC value.
 
@@ -32,8 +48,12 @@ defmodule OSCx.Encoder do
   | f        | 102            | 32 bit float    | 1.0+ required    |
   | s        | 115            | String          | 1.0+ required    |
   | b        | 98             | Blob            | 1.0+ required    |
-  | t        | 116            | OSC time tag    | 1.1+ required    |
   | h        | 104            | 64-bit big-endian two’s complement integer | 1.0 non-standard |
+  | t        | 116            | OSC time tag    | 1.1+ required    |
+  | T        | 84             | True (tag only, no arguments) | 1.1+ required |
+  | F        | 80             | False (tag only, no arguments) | 1.1+ required |
+  | N        | 78             | Null (tag only, no arguments) | 1.1+ required |
+  | I        | 73             | Impulse (tag only, no arguments) | 1.1+ required |
 
   These type tags are used to build a type tag string, which is part of the OSC message.
 
@@ -164,6 +184,58 @@ defmodule OSCx.Encoder do
     |> Enum.map(&type_tag_string(&1))
     |> List.to_string()
   end
+
+  @doc section: :tag
+  @doc """
+  Encode a tag based on an Elixir type or special atom.
+
+  This function accepts the following Elixir types and returns the equivalent OSC string tag type character as below:
+
+  | Elixir value | OSC type | Character returned for OSC string tag type |
+  | true | True | T |
+  | false | False | F |
+  | nil | Null | N |
+  | :null | Null | N |
+  | :impulse | Impulse | I |
+  """
+  def tag(true), do: tag_true()
+  def tag(false), do: tag_false()
+  def tag(nil), do: tag_null()
+  def tag(:null), do: tag_null()
+  def tag(:impulse), do: tag_impulse()
+
+  @doc section: :tag
+  @doc """
+  Used to encode *true* into the tag type string.
+
+  True equates to the charater 'T'.
+  """
+  def tag_true, do: ?T
+
+  @doc section: :tag
+  @doc """
+  Used to encode *false* into the tag type string.
+
+  True equates to the charater 'F'.
+  """
+  def tag_false, do: ?F
+
+  @doc section: :tag
+  @doc """
+  Used to encode *null* into the tag type string.
+
+  True equates to the charater 'N'.
+  """
+  def tag_null, do: ?N
+
+  @doc section: :tag
+  @doc """
+  Used to encode *impulse* into the tag type string.
+
+  True equates to the charater 'I'.
+  """
+  def tag_impulse, do: ?I
+
 
   ## HELPERS
 

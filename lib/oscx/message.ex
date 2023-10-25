@@ -3,12 +3,12 @@ defmodule OSCx.Message do
   A module and struct for manipulating and representing OSC messages.
 
   The struct has two keys:
-  - address: representing the OSC address. Defaults to the root address of `"/"`
-  - arguments: an Elixir list of arguments. Defults to an empty list `[]`.
+  - `address:` representing the OSC address. Defaults to the root address of `"/"`
+  - `arguments:` an Elixir list of arguments. Defults to an empty list `[]`.
 
   The two main functions are:
   - `encode/1` which takes an `%OSCx.Message{}` struct and encodes it to the OSC message format
-  - `decode/1` which takes an OSC message recieved (e.g. via UDP) and decodes it into it's Elixir types.
+  - `decode/1` which takes an OSC message recieved (e.g. via UDP) and decodes it into an `%OSCx.Message{}` struct.
 
   ## Structure of OSC messages
   OSC messages are made up of three parts:
@@ -31,7 +31,7 @@ defmodule OSCx.Message do
   # Inspect the message to see how it is encoded
   # The OSCx.Decoder.inspect() shows:
   # - the character code of each byte
-  # - it's printable utf8 value
+  # - its printable utf8 value
   # - underscore (_) is used to denote either a 0 value or padding
   # - (D) is a non-printable data value
   iex> encoded_msg |> OSCx.Decoder.inspect()
@@ -84,6 +84,14 @@ defmodule OSCx.Message do
   alias OSCx.Encoder
   alias OSCx.Decoder
 
+  def new(opts \\ [])
+  def new(opts) when is_map_key(opts, :tags)  do
+    IO.puts "TAG GIVEN"
+  end
+  def new(opts) do
+    struct(__MODULE__, opts)
+  end
+
   @doc """
   Encodes an `%OSCx.Message{}` struct to an OSC binary message.
 
@@ -102,36 +110,38 @@ defmodule OSCx.Message do
   ```
   """
   def encode(message) when is_struct(message, OSCx.Message) do
-
     encoded_arguments = Enum.map(message.arguments, &Encoder.encode_arg(&1))
+    # Arbitary length data like strings in the address and tag_type_string may need padding
     address = Encoder.pad(message.address) |> List.to_string()
     tag_type_string = "," <> Encoder.type_tag_string(encoded_arguments) |> Encoder.pad() |> Enum.join(<<>>)
     arguments = Encoder.encoded_value(encoded_arguments) |> List.flatten() |> Enum.join(<<>>)
-
-    # IO.inspect address, label: "Address"
-    # IO.inspect tag_type_string, label: "Tag type"
-    # IO.inspect arguments, label: "Args"
 
     # Encoded message is: <OSC Address Pattern> followed by an <OSC Type Tag String> followed by <zero or more OSC Arguments>.
     address <> tag_type_string <> arguments
   end
 
   @spec decode(any()) :: Message
+  @doc """
+  Decodes a binary OSC message.
+
+  ## Example
+  ```
+  # Binary OSC message
+  iex> bin_msg = <<47, 115, 116, 97, 116, 117, 115, 0, 44, 0, 0, 0>>
+  <<47, 115, 116, 97, 116, 117, 115, 0, 44, 0, 0, 0>>
+
+  iex> decoded_msg = OSCx.Message.decode(bin_msg)
+  %OSCx.Message{address: "/status", arguments: []}
+  ```
+
+  In practice, use `OSCx.decode/1` instead which can accept messages or bundles.
+  """
   def decode(message) do
     # Split the message into the address, tag_type_string and arguments.
     {address, rest} = Decoder.address(message)
     {tag_type_string, args_data} = Decoder.tag_list(rest)
-
     # Decode the arguments.
     args = Decoder.decode_arg(to_charlist(tag_type_string), args_data)
-
-    # Return the decoded message.
-    # %Message{address: address, arguments: args}
-    IO.inspect message, label: "Original message"
-    IO.inspect address, label: "Address"
-    IO.inspect tag_type_string, label: "Tag type string"
-    IO.inspect args_data, label: "Data"
-    IO.inspect args, label: "Processed args"
 
     %Message{address: address, arguments: args}
   end

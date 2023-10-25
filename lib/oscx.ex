@@ -36,7 +36,7 @@ defmodule OSCx do
   """
 
   @doc """
-  Encodes an `%OSCx.Message{}` or `%OSCx.Bundle{}` structs as an OSC message packet.
+  Encodes an `%OSCx.Message{}` or `%OSCx.Bundle{}` structs as OSC binary data.
 
   ## Example
   ```

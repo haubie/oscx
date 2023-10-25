@@ -38,6 +38,7 @@ defmodule OSCx.MixProject do
         groups_for_docs: [
           "Primary function": &(&1[:section] == :primary),
           "Type functions": &(&1[:section] == :type),
+          "Tag specific": &(&1[:section] == :tag),
           "Helper functions": &(&1[:section] == :helper),
         ]
       ]

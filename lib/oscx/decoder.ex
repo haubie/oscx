@@ -1,12 +1,14 @@
 defmodule OSCx.Decoder do
   @moduledoc """
-  Decodes an OSC message into Elixir.
+  Helpers to decode an OSC message into Elixir.
 
-  This module contains helper functions that parse OSC binary data and convert them equivalent Elixir type.
+  This module contains helper functions that parse OSC binary data and converts them into equivalent Elixir types.
 
-  To decode the full OSC data, these functions are chained together and are used by the `OSCx.Message.decode/1` and `OSCx.Bundle.decode/1` functions to do so.
+  To decode the full OSC data, these functions are chained together and are used by `OSCx.Message.decode/1` and `OSCx.Bundle.decode/1`.
 
-  Note that in practice you'll will liekly not need to directly use this module and will use `OSCx.decode/1` instead.
+  > #### Tip {: .tip}
+  >
+  > Note that in practice you'll will likely not need to use this module directly and instead use `OSCx.decode/1`.
   """
   alias OSCx.Decoder
 
@@ -80,7 +82,11 @@ defmodule OSCx.Decoder do
   end
 
   @doc section: :type
+  @doc """
+  Decodes a 32-bit float from the head of the binary.
 
+  Returns a tuple with the first element the float value, and the second element the remainding binary data.
+  """
   def float(binary) do
     <<float::big-float-size(32), rest::binary>> = binary
     {float, rest}
@@ -90,32 +96,112 @@ defmodule OSCx.Decoder do
   @doc """
   Extracts a string from the binary.
 
-  Assumes that the binary starts with a string type.
+  This function assumes that the binary starts with a string type.
 
   Any additional padding added to the string is removed.
 
   Returns a tuple with the first element containg the string value, and the second element the remaining binary data.
+
+  This is similar to the `OSCx.Decoder.blob/1` function.
+
+  ## Example
+  ```
+  iex> bin_string = <<72, 101, 108, 108, 111, 44, 32, 119, 111, 114, 108, 100, 33, 0, 0, 0>>
+  <<72, 101, 108, 108, 111, 44, 32, 119, 111, 114, 108, 100, 33, 0, 0, 0>>
+
+  iex> OSCx.Decoder.string(bin_string)
+  {"Hello, world!", ""}
+  ```
   """
   def string(binary) do
     [string, rest] = :binary.split(binary, <<0>>)
-
     {string, Decoder.de_pad(string, rest)}
   end
 
 
   @doc section: :type
-  def blob(binary) do
-    # Get the blob value.
-    blob = binary |> :binary.part(1, 0) |> :binary.bin_to_list()
+  @doc """
+  Extracts a blob (non-string binary sequence) from the binary.
 
-    # Return the decoded blob.
-    {blob, binary |> :binary.part(length(blob) + 1, 0)}
+  This function assumes that the binary starts with the blob type.
+
+  Any additional padding added to the blob is removed.
+
+  Returns a tuple with the first element containg the blob value, and the second element the remaining binary data.
+
+  This is similar to the `OSCx.Decoder.string/1` function.
+  """
+  def blob(binary) do
+    <<size::big-size(32), blob::binary-size(size), rest::binary >> = binary
+    {blob, Decoder.de_pad(size, rest)}
+  end
+
+  @doc section: :type
+  @doc """
+  Extracts a time-tag from the head of the binary.
+
+  This function assumes that the binary starts with a time-tag.
+
+  Returns a tuple with the first element containg the time tag as a map, and the second element the remaining binary data.
+
+  The time tag map is in the format:
+  ```
+  %{seconds: seconds, fraction: fraction}
+  ```
+  Where:
+  - `seconds` is the number of seconds since midnight on January 1, 1900
+  - `fraction` is the fractional part of a second to a precision of about 200 picoseconds.
+  Both of these are 32-bit integers.
+  """
+  def time(binary) do
+    <<seconds::big-size(32), fraction::big-size(32), rest::binary>> = binary
+    {%{seconds: seconds, fraction: fraction}, rest}
   end
 
   @doc section: :helper
-  def de_pad(string_or_blob, bin_data) do
+  @doc """
+  Removes padding prepended to remaining binary data.
+
+  OSC messages are encoded in chunks of 4 bytes. When arbitary data, such as a string or blob is less that 4 bytes, padding using a value of `<<0>>` is added.
+
+  This function takes the following parameters:
+  - String or Blob (both are binary data of an arbitary length) OR byte size of the string or blob
+  - Remaning binary data once the String or Blob has been extracted
+
+  Returns the remaing binary data with any leading padding removed.
+
+  ## Example
+  ### String
+  ```
+  iex> bin_string = <<72, 101, 108, 108, 111, 0, 0, 0, 119, 111, 114, 108, 100, 33, 0, 0>>
+  <<72, 101, 108, 108, 111, 0, 0, 0, 119, 111, 114, 108, 100, 33, 0, 0>>
+
+  iex> [string, rest] = :binary.split(bin_string, <<0>>)
+  ["Hello", <<0, 0, 119, 111, 114, 108, 100, 33, 0, 0>>]
+
+  # Leading padding will be removed, based on the previous strings size
+  iex> OSCx.Decoder.de_pad(string, rest)
+  <<119, 111, 114, 108, 100, 33, 0, 0>>
+  ```
+  ### Byte size
+  ```
+  iex> bin_string = <<72, 101, 108, 108, 111, 0, 0, 0, 119, 111, 114, 108, 100, 33, 0, 0>>
+  <<72, 101, 108, 108, 111, 0, 0, 0, 119, 111, 114, 108, 100, 33, 0, 0>>
+
+  iex> [string, rest] = :binary.split(bin_string, <<0>>)
+  ["Hello", <<0, 0, 119, 111, 114, 108, 100, 33, 0, 0>>]
+
+  # Set byte size to 5 ("Hello" has byte size of 5). Any leading padding will be removed based on this size.
+  iex> OSCx.Decoder.de_pad(5, rest)
+  <<119, 111, 114, 108, 100, 33, 0, 0>>
+  ```
+  """
+  def de_pad(string_or_blob_or_size, bin_data) when is_binary(string_or_blob_or_size) do
+    de_pad(byte_size(string_or_blob_or_size), bin_data)
+  end
+  def de_pad(size, bin_data) when is_number(size) do
     depad_amt =
-      case rem(byte_size(string_or_blob), 4) do
+      case rem(size, 4) do
         0 -> 3
         1 -> 2
         2 -> 1
@@ -133,7 +219,7 @@ defmodule OSCx.Decoder do
 
   The OSCx.Decoder.inspect() shows:
   - the character code of each byte
-  - it's printable utf8 value
+  - its printable utf8 value
   - underscore (_) is used to denote either a 0 value or padding
   - (D) is a non-printable data value
 

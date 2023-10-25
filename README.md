@@ -24,8 +24,8 @@ Below is a summary of key OSC concepts:
 
 - #### Messages
   OSC messages are the basic unit of communication in OSC. They consist of an **address**, a **type tag**, and zero or more **arguments**.
-  The address is a string that identifies the target of the message, such as `/my_synth/volume` or `/my_controller/button_1`.
-  The type tag specifies the type of the arguments, which can be integers, floats, strings, or blobs of binary data.
+  - The address is a string that identifies the target of the message, such as `/my_synth/volume` or `/my_controller/button_1`. This is very similar to the resource string or path seen in URLs.
+  - The type tag specifies the type of the arguments, which can be integers, floats, strings, or blobs of binary data.
 
   See `OSCx.Message`
 
@@ -44,6 +44,8 @@ Below is a summary of key OSC concepts:
 
 - #### Timetags
   OSC timetags can be used to synchronize OSC messages with other events. This is essential for applications such as audio and video production.
+  
+  OSC uses the same format as 64-bit Internet NTP timestamps, where the first 32 bits specify the number of seconds since midnight on January 1, 1900, and the last 32 bits specify fractional parts of a second to a precision of about 200 picoseconds. 
 
   See `OSCx.Encoder.time/2`
 
