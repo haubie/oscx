@@ -14,6 +14,9 @@ defmodule OSCx.Bundle do
   - Bundle identifer: which is the the string “#bundle”.
   - Time: a time tag which is a 64-bit time identifier. The first 32 bits specify the number of seconds since midnight on January 1, 1900, and the last 32 bits specify fractional parts of a second to a precision of about 200 picoseconds. This representation is used by Internet NTP timestamps.
   - Elements: the payload of the bundle, which can be any number of messages or bundles. Each of these are preceded by a 4-byte integer byte count.
+
+  ![OSC bundle diagram](assets/osc-bundle.png)
+
   """
 
   defstruct time: %{seconds: nil, fraction: nil}, elements: []

@@ -5,11 +5,12 @@ defmodule OSCx.Message do
   The struct has three keys:
   - `address:` representing the OSC address. Defaults to the root address of `"/"`
   - `arguments:` an Elixir list of arguments. Defults to an empty list `[]`.
-  - `tag_types:` not oftent used, but contains a list of special tags which aren't encoded in arguments. These are:
+  - `tag_types:` not often used, but contains a list of special tags which aren't encoded in arguments. These are:
       - `true` which encodes to the OSC type: True
       - `false` which encodes to the OSC type: False
       - `nil` or `:null` which encodes to the OSC type: Null
       - `:impulse` which encodes to the OSC type: Impulse
+
       Zero, one or more of these can be included in a list. Defults to an empty list `[]`.
 
   The two main functions are:
