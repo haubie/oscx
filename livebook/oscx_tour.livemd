@@ -1,0 +1,88 @@
+# OSCx tour
+
+```elixir
+Mix.install([{:oscx, path: "../../oscx"}])
+```
+
+## Setup
+
+```elixir
+alias OSCx.Message
+alias OSCx.Encoder
+alias OSCx.Decoder
+```
+
+## Create an OSC message
+
+```elixir
+msg = %Message{address: "/status", arguments: []}
+```
+
+```elixir
+encoded_osc_msg = OSCx.encode(msg)
+```
+
+## Send encoded message using UDP
+
+```elixir
+# IP or host and port number for the UDP connection
+# This could be changed to named address, like 'localhost'
+ip_address = ~c"127.0.0.1"
+port_num = 57110
+
+# Open a port
+{:ok, port} = :gen_udp.open(0, [:binary, {:active, true}])
+```
+
+```elixir
+:gen_udp.send(port, ip_address, port_num, encoded_osc_msg)
+```
+
+```elixir
+defmodule Listner do
+  use GenServer
+
+  def init(state) do
+    # IP or host and port number for the UDP connection
+    # This could be changed to named address, like 'localhost'
+    ip_address = ~c"127.0.0.1"
+    port_num = 57110
+
+    # Open a port
+    {:ok, port} = :gen_udp.open(0, [:binary, {:active, true}])
+    :gen_udp.send(port, ip_address, port_num, state)
+
+    {:ok, state}
+  end
+
+  def handle_info(msg) do
+    IO.inspect(msg, label: "MSG")
+  end
+end
+```
+
+```elixir
+gs = GenServer.start_link(Listner, encoded_osc_msg)
+```
+
+```elixir
+{:ok, lpid} = gs
+```
+
+```elixir
+
+```
+
+```elixir
+<<47, 115, 116, 97, 116, 117, 115, 0, 44, 48, 48, 48>>
+|> to_charlist()
+|> Enum.map(fn char -> "#{char} (#{<<char::utf8>>})" end)
+```
+
+```elixir
+<<48, 32, 40, 0, 41>>
+```
+
+```elixir
+
+```
