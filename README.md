@@ -3,6 +3,15 @@
 [![Documentation](http://img.shields.io/badge/hex.pm-docs-green.svg?style=flat)](https://hexdocs.pm/oscx)
 [![Package](https://img.shields.io/hexpm/v/oscx.svg)](https://hex.pm/packages/oscx)
 
+## DRAFT - Still under developement
+This is an *early version* which is still under development.
+
+Status:
+- Maintains a similar API to the older osc_ex library, so it should be a close to drop-in replacement
+- Currently message encoding and decoding should work.
+- Bundles have not yet been implemented but are the next priority.
+
+## About this library
 OSCx is an Elixir library for encoding and decoding Open Sound Control (OSC) messages.
 
 OSC is a flexible protocol that can be used for a wide variety of real-time tasks, such as controlling multimedia devices.
