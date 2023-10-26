@@ -87,15 +87,43 @@ defmodule OSCx.Message do
   """
   defstruct address: "/", arguments: [], tag_types: []
 
+  @special_tag_types [?T, ?F, ?N, ?I]
+
   alias OSCx.Message
   alias OSCx.Encoder
   alias OSCx.Decoder
 
-  def new(opts \\ [])
-  def new(opts) when is_map_key(opts, :tags)  do
-    IO.puts "TAG GIVEN"
-  end
-  def new(opts) do
+  @doc """
+  Convenience function for creating an `%OSCx.Message{}` struct.
+
+  Optionally takes a keyword list as it's first parameter, recognising any of the following keys:
+  - `address:` the OSC adress string, for example `address: "/synth/play_note"`
+  - `arguments:` a list of arguments, for example `arguments: [440.5]`
+  - `tag_types:` used for 'special' types which are encoded only in OSCs tag type string, rather than as an argument:
+
+    | Elixir type | OSC string tag type | OSC character |
+    | true        | True                | T             |
+    | false       | False               | F             |
+    | nil         | Null                | N             |
+    | :null       | Null                | N             |
+    | :impulse    | Impulse             | I             |
+
+    Example: `tag_types: [:impulse]`
+
+  Note that tag_types is only for 'special' types above. Specifying types for arguments is not needed as this library looks after that when encoding the OSC message.
+
+  ## Example
+  ```
+  iex> OSCx.Message.new(address: "/synth/play_chord", arguments: [440.0, 445.0, 450.0])
+
+  %OSCx.Message{
+    address: "/synth/play_chord",
+    arguments: [440.0, 445.0, 450.0],
+    tag_types: []
+  }
+  ```
+  """
+  def new(opts \\ []) do
     struct(__MODULE__, opts)
   end
 
@@ -140,22 +168,24 @@ defmodule OSCx.Message do
   iex> decoded_msg = OSCx.Message.decode(bin_msg)
   %OSCx.Message{address: "/status", arguments: []}
   ```
-
   In practice, use `OSCx.decode/1` instead which can accept messages or bundles.
   """
   def decode(message) do
-    # Split the message into the address, tag_type_string and arguments.
+    # Split the message into the <address>, <tag_type_string> and <arguments>:
+    # 1. Decode the address
+    # 2. Decode tag type string
+    # 3. Extract special type tags (if any)
+    # 4. Decode arguments (main data payload)
+
     {address, rest} = Decoder.address(message)
     {tag_type_string, args_data} = Decoder.tag_list(rest)
+
     special_tag_types = Decoder.tag(tag_type_string)
-
-    # Drop special tags, these are captilised
-    tag_type_string = tag_type_string |> to_charlist() |> Enum.filter(fn char -> char not in [?A..?Z] end)
-
-    # Decode the arguments.
+    tag_type_string = drop_special_string_tags(tag_type_string)
     args = Decoder.decode_arg(to_charlist(tag_type_string), args_data)
 
     %Message{address: address, arguments: args, tag_types: special_tag_types}
   end
 
+  defp drop_special_string_tags(tag_type_string), do: tag_type_string |> to_charlist() |> Enum.filter(fn char -> char not in @special_tag_types end)
 end

@@ -22,7 +22,9 @@ defmodule OSCx.Decoder do
   | h        | 104            | 64-bit big-endian two’s complement integer | 1.0 non-standard |
   | m        | 109            | 4 byte MIDI message | 1.0 non-standard |
   | t        | 116            | OSC time tag    | 1.1+ required    |
+  | S        | 83             | Symbol          | 1.0 non-standard    |
 
+  By default, Symbols are converted to Elixir atoms. This behaviour can be changed, see `OSCx.Decoder.set_symbol_to_atom/1`.
 
   The following string type tags can also be decoded using the `tag/1` function:
 
@@ -32,7 +34,6 @@ defmodule OSCx.Decoder do
   | F        | 80             | False (tag only, no arguments) | 1.1+ required |
   | N        | 78             | Null (tag only, no arguments) | 1.1+ required |
   | I        | 73             | Impulse (tag only, no arguments) | 1.1+ required |
-
   """
   alias OSCx.Decoder
 
@@ -43,15 +44,6 @@ defmodule OSCx.Decoder do
   Takes the binary data from the message. This assumes that the address has been removed from the start of the OSC message, and only the tag type string and arguments are remaining:
 
   > <OSC address> + <OSC tag type string with padding> + <OSC arguments>
-
-  Special tag types such as the following are ignored by this function, as they're decoded separately:
-
-  | Type tag | Unicode number | Type            | OSC spec version |
-  | -------- | -------------- | --------------- | ---------------- |
-  | T        | 84             | True (tag only, no arguments) | 1.1+ required |
-  | F        | 80             | False (tag only, no arguments) | 1.1+ required |
-  | N        | 78             | Null (tag only, no arguments) | 1.1+ required |
-  | I        | 73             | Impulse (tag only, no arguments) | 1.1+ required |
 
   Returns a tuple with the first element containing the tags (with the leading comma removed), and the second element the remaining binary data with tag type string and it's padding removed.
   """
@@ -109,7 +101,8 @@ defmodule OSCx.Decoder do
         ?h -> Decoder.integer_64bit(arg_data)
         ?m -> Decoder.midi(arg_data)
         ?t -> Decoder.time(arg_data)
-        other -> {:other, arg_data}
+        ?S -> Decoder.symbol(arg_data)
+        _other -> {:other, arg_data}
       end
 
     decode_arg(rest_tags, rest_arg_data, [decoded_data | acc])
@@ -172,6 +165,38 @@ defmodule OSCx.Decoder do
   def string(binary) do
     [string, rest] = :binary.split(binary, <<0>>)
     {string, Decoder.de_pad(string, rest)}
+  end
+
+  @doc section: :type
+  @doc """
+  Extracts a symbols from the binary.
+
+  In the OSC 1.0 Specification, this is considered an alternate OSC-string representation, used for example in systems that differentiate “symbols” from “strings”.
+
+  ##
+  This function assumes that the binary starts with a symbol type.
+
+  Any additional padding added to the symbol is removed.
+
+  Returns a tuple with the first element containg the symbol value as an atom, and the second element the remaining binary data.
+
+  This is similar to the `OSCx.Decoder.string/1` function.
+
+  ## Symbols become `:atoms` by default
+  In this library, Elixir's atom type is considered an OSC Symbol type.
+
+  Uncontrolled creation of atoms is not considered good pratice on the BEAM. If there are potentially a lot of Symbols being decoded, consider decoding to a String instead.
+
+  This default behaviour can be changed by calling `OSCx.Decoder.set_symbol_to_atom(false)` or setting the application environment `Application.get_env(:OSCx, :symbol_to_atom, false)`.
+
+  For more information, see `OSCx.Decoder.set_symbol_to_atom/1`.
+  """
+  def symbol(binary) do
+    [symbol, rest] = :binary.split(binary, <<0>>)
+    de_padded_bin = Decoder.de_pad(symbol, rest)
+    # Convert Symbol type to Elixir atom, unless otherwise specified in the application config
+    symbol = if Application.get_env(:OSCx, :symbol_to_atom, true), do: String.to_atom(symbol), else: symbol
+    {symbol, de_padded_bin}
   end
 
 
@@ -385,5 +410,25 @@ defmodule OSCx.Decoder do
     |> Enum.with_index(fn (d, i) ->
       { i, d }
     end)
+  end
+
+  @doc section: :helper
+  @doc """
+  Sets the default behaviour when decoding of OSC Symbol types.
+
+  Takes as its first parameter a boolean representing the following behaviour:
+  - true: OSC Symbols are converted to Elixir atoms. This is the default behaviour.
+  - false: OSC Symbols are converted to Elixir strings.
+
+  This function changes the `:OSCx, :symbol_to_atom` application evironment, e.g.: `Application.get_env(:OSCx, :symbol_to_atom, false)`.
+
+  ## Why this option?
+  Uncontrolled dynamic creation of atoms on the BEAM may not be considered good practice.
+  Atoms are not garbage collected by the Erlang Virtual Machine, so they live in memory during a software's entire execution lifetime.
+  Although there is a high-limit on the number of atoms that can be created on the BEAM, for situations where there may be a large variety of atoms, converting to Elixir's string type may be preferrable.
+  For more information on this see [Code-related anti-patterns](https://hexdocs.pm/elixir/main/code-anti-patterns.html).
+  """
+  def set_symbol_to_atom(true_or_false \\ true) do
+      Application.put_env(:OSCx, :symbol_to_atom, true_or_false)
   end
 end
