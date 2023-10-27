@@ -1,3 +1,5 @@
+<!-- livebook:{"file_entries":[{"name":"protokol-screenshot-01.png","type":"attachment"},{"name":"protokol-screenshot-02.png","type":"attachment"},{"name":"protokol-screenshot-03.png","type":"attachment"}],"persist_outputs":true} -->
+
 # OSCx tour
 
 ```elixir
@@ -6,81 +8,260 @@ Mix.install([{:oscx, path: "../../oscx"}])
 
 ## Setup
 
+Create aliases for Message, Encoder and Decoder.
+
 ```elixir
 alias OSCx.Message
 alias OSCx.Encoder
 alias OSCx.Decoder
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+OSCx.Decoder
+```
+
 ## Create an OSC message
+
+An OSC message is defined using the `%OSCx.Message{}` struct.
+
+You can use the `OSCx.Message.new/1` function, e.g.:
+
+```
+Message.new(address: "/status", arguments: ["my string argument"])
+```
+
+or populate the struct directly, see the cell below:
 
 ```elixir
 msg = %Message{address: "/status", arguments: []}
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+%OSCx.Message{address: "/status", arguments: []}
+```
+
+## Encode the message
+
+The `OSCx.message/1` function can be used to encode the struct to an OSC binary message.
+
 ```elixir
 encoded_osc_msg = OSCx.encode(msg)
 ```
 
-## Send encoded message using UDP
+<!-- livebook:{"output":true} -->
+
+```
+<<47, 115, 116, 97, 116, 117, 115, 0, 44, 0, 0, 0>>
+```
+
+The message above is now ready to be sent via UDP.
+
+## Send an encoded message using UDP
+
+### Download Protokol
+
+For this part, you may want to download an OSC data inspection tool, like [Protokol](https://hexler.net/protokol).
+
+Protokol is a free responsive console app for monitoring and logging control protocols, such as OSC. It can log MIDI and Gamepad inputs.
+
+It's available on Mac, Windows and Linux.
+
+We'll use Protokol to act as the OSC server (recipient) of our message.
+
+### Enable OSC in Protokol
+
+Once Protokol is installed, load it and click the 'OSC' tab. Make sure **Enabled** is checked on.
+
+### Open a UDP port
+
+Erlang and therefore Elixir comes with the `:gen_udp` library for opening UDP ports and sending and recieving messages.
+
+Lets use it to send an OSC message to [Protokol](https://hexler.net/protokol). By default, Protokol listens on port `8000` but you can change this if necessary.
+
+Assuming Protokol is running on the same machine as this Livebook, we'll use the localhost IP address of `127.0.0.1` (or you can change this to `'localhost'` if you prefer).
 
 ```elixir
-# IP or host and port number for the UDP connection
-# This could be changed to named address, like 'localhost'
 ip_address = ~c"127.0.0.1"
-port_num = 57110
+port_num = 8000
 
 # Open a port
 {:ok, port} = :gen_udp.open(0, [:binary, {:active, true}])
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+{:ok, #Port<0.12>}
+```
+
+Now the port is open, lets send our message using `:gen_udp.send/4` as below:
+
 ```elixir
 :gen_udp.send(port, ip_address, port_num, encoded_osc_msg)
 ```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+You should now see our message with `"/status"` on Protokol's OSC tab:
+![](files/protokol-screenshot-01.png)
+
+<!-- livebook:{"break_markdown":true} -->
+
+To make it more interesting, lets send a more complex message by adding arguments to the `%OSCx.Messages{arguments: []}` key like this:
+
+```elixir
+encoded_osc_msg =
+  %Message{
+    address: "/some/address",
+    arguments: [1, 2.0, [:A, :B, :C], "Hello world", true, false, nil, :impulse]
+  }
+  |> OSCx.encode()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+<<47, 115, 111, 109, 101, 47, 97, 100, 100, 114, 101, 115, 115, 0, 0, 0, 44, 105, 102, 91, 83, 83,
+  83, 93, 115, 84, 70, 78, 73, 0, 0, 0, 0, 0, 0, 1, 64, 0, 0, 0, 65, 0, 0, 0, 66, 0, 0, 0, 67, 0,
+  ...>>
+```
+
+This message has a mix of OSC types and values:
+
+* integer
+* float
+* array (list in Elixir) containing Strings
+* string of `"Hello, world"`
+* true
+* false
+* null (`nil` in Elixir)
+* impulse (`:impulse` atom in Elixir)
+
+Let's send it as before:
+
+```elixir
+:gen_udp.send(port, ip_address, port_num, encoded_osc_msg)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+You should now see our richer OSC message on the second line in Protokol:
+![](files/protokol-screenshot-02.png)
+Unfortunately Protokol doesn't show the array of symbols. This is something you may come across in OSC. Some types are optional parts of the OSC standard and are not implemented on all software.
+
+You can send an OSC array of other data instead:
+
+```elixir
+bin_osc_msg =
+  %Message{
+    address: "/some/address",
+    arguments: [1, 2, 3, ["X", "Y", "Z"]]
+  }
+  |> OSCx.encode()
+
+:gen_udp.send(port, ip_address, port_num, bin_osc_msg)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+You can see on the third line that the list values in the last wa also received:
+![](files/protokol-screenshot-03.png)
+
+## Recieving OSC messages
 
 ```elixir
 defmodule Listner do
   use GenServer
 
-  def init(state) do
+  def init(_state) do
     # IP or host and port number for the UDP connection
     # This could be changed to named address, like 'localhost'
     ip_address = ~c"127.0.0.1"
-    port_num = 57110
 
     # Open a port
     {:ok, port} = :gen_udp.open(0, [:binary, {:active, true}])
-    :gen_udp.send(port, ip_address, port_num, state)
 
-    {:ok, state}
+    {:ok, port}
   end
 
-  def handle_info(msg) do
-    IO.inspect(msg, label: "MSG")
+  def send(msg) do
+    ip_address = ~c"127.0.0.1"
+    :gen_udp.send(0, ip_address, 8000, msg)
+    :gen_udp.send(port, ip_address, port_num, encoded_osc_msg)
+  end
+
+  def handle_info(msg, state) do
+    IO.inspect(msg)
+
+    case msg do
+      {:udp, _process_port, _ip_addr, _port_num, res} ->
+        IO.inspect(res, label: "Binary message recieved")
+        IO.inspect(Message.decode(res), label: "Decoded message")
+        state
+
+      _ ->
+        state
+    end
+
+    {:noreply, state}
   end
 end
 ```
 
-```elixir
-gs = GenServer.start_link(Listner, encoded_osc_msg)
-```
+<!-- livebook:{"output":true} -->
 
-```elixir
-{:ok, lpid} = gs
 ```
-
-```elixir
+warning: variable "ip_address" is unused (if the variable is not meant to be used, prefix it with an underscore)
+  oscx_tour.livemd#cell:wkmer4wsveb4egznosurwtnsc57ezohp:7: Listner.init/1
 
 ```
 
-```elixir
-<<47, 115, 116, 97, 116, 117, 115, 0, 44, 48, 48, 48>>
-|> to_charlist()
-|> Enum.map(fn char -> "#{char} (#{<<char::utf8>>})" end)
+<!-- livebook:{"output":true} -->
+
+```
+{:module, Listner, <<70, 79, 82, 49, 0, 0, 20, ...>>, {:handle_info, 2}}
 ```
 
 ```elixir
-<<48, 32, 40, 0, 41>>
+{:ok, listener_pid} = GenServer.start_link(Listner, nil)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:ok, #PID<0.298.0>}
+```
+
+```elixir
+Listner.send(encoded_osc_msg)
+```
+
+```elixir
+
+```
+
+```elixir
+
+```
+
+```elixir
+
 ```
 
 ```elixir
