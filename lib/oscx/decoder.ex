@@ -11,6 +11,7 @@ defmodule OSCx.Decoder do
   > Note that in practice you'll will likely not need to use this module directly and instead use `OSCx.decode/1`.
 
   ## Automatically decoded types
+  ### Types with arguments
   The following types can be automatically decoded:
 
   | Type tag | Unicode number | Type            | OSC spec version |
@@ -23,10 +24,13 @@ defmodule OSCx.Decoder do
   | m        | 109            | 4 byte MIDI message | 1.0 non-standard |
   | t        | 116            | OSC time tag    | 1.1+ required    |
   | S        | 83             | Symbol          | 1.0 non-standard    |
+  | [ and ]  | 91 and 93      | List            | 1.0 non-standard    |
 
+  ### Symbols, Atoms and Strings
   By default, Symbols are converted to Elixir atoms. This behaviour can be changed, see `OSCx.Decoder.set_symbol_to_atom/1`.
 
-  The following string type tags can also be decoded using the `tag/1` function:
+  ### Special string tag types
+  The following string type tags are also automatically decoded via the `tag/1` function:
 
   | Type tag | Unicode number | Type            | OSC spec version |
   | -------- | -------------- | --------------- | ---------------- |
@@ -34,6 +38,9 @@ defmodule OSCx.Decoder do
   | F        | 80             | False (tag only, no arguments) | 1.1+ required |
   | N        | 78             | Null (tag only, no arguments) | 1.1+ required |
   | I        | 73             | Impulse (tag only, no arguments) | 1.1+ required |
+
+  ## More information
+  To learn more about how this library decodes and encodes data, see: [Arguments and types](arguments_and_types.md).
   """
   alias OSCx.Decoder
 
@@ -82,27 +89,30 @@ defmodule OSCx.Decoder do
   | h        | 104            | 64-bit big-endian two’s complement integer | 1.0 non-standard |
   | m        | 109            | 4 byte MIDI message | 1.0 non-standard |
   | t        | 116            | OSC time tag    | 1.1+ required    |
+  | S        | 83             | Symbol          | 1.0 non-standard    |
+  | [ and ]  | 91 and 93      | List            | 1.0 non-standard    |
 
   This function takes the following parameters:
   - List (charlist) of tag types (e.g. ?s for string, ?i for integer, etc)
   - Binary data, with the address and tag type string removed so that only argument data remains
 
-  Returns the arguments data as a list.
+  Returns a tuple with the first element containing the decoded data, and the second element any remaining data. The second element will be an empty binary if all data was successfully decoded to the end.
   """
   def decode_arg(tag_list, arg_data, acc \\ [])
-  def decode_arg([], _arg_data, acc), do: Enum.reverse(acc) |> Enum.filter(&(&1 != :other))
+  def decode_arg([], remaining_arg_data, acc), do: { Enum.reverse(acc) |> Enum.filter(&(&1 != :other)), remaining_arg_data }
   def decode_arg([tag | rest_tags]=_tag_list, arg_data, acc) do
-    {decoded_data, rest_arg_data} =
+    {decoded_data, rest_arg_data, rest_tags} =
       case tag do
-        ?i -> Decoder.integer(arg_data)
-        ?f -> Decoder.float(arg_data)
-        ?s -> Decoder.string(arg_data)
-        ?b -> Decoder.blob(arg_data)
-        ?h -> Decoder.integer_64bit(arg_data)
-        ?m -> Decoder.midi(arg_data)
-        ?t -> Decoder.time(arg_data)
-        ?S -> Decoder.symbol(arg_data)
-        _other -> {:other, arg_data}
+        ?i -> Decoder.integer(arg_data, rest_tags)
+        ?f -> Decoder.float(arg_data, rest_tags)
+        ?s -> Decoder.string(arg_data, rest_tags)
+        ?b -> Decoder.blob(arg_data, rest_tags)
+        ?h -> Decoder.integer_64bit(arg_data, rest_tags)
+        ?m -> Decoder.midi(arg_data, rest_tags)
+        ?t -> Decoder.time(arg_data, rest_tags)
+        ?S -> Decoder.symbol(arg_data, rest_tags)
+        ?[ -> Decoder.list(arg_data, rest_tags)
+        _other -> {:other, arg_data, rest_tags}
       end
 
     decode_arg(rest_tags, rest_arg_data, [decoded_data | acc])
@@ -112,33 +122,44 @@ defmodule OSCx.Decoder do
   @doc """
   Decodes a 32-bit integer from the head of the binary.
 
-  Returns a tuple with the first element the integer value, and the second element the remainding binary data.
+  Returns a tuple with the:
+  - first element: the integer value
+  - second element: the remaining binary data
+  - third element: the rest of the type tags to be processed.
   """
-  def integer(binary) do
+  def integer(binary, rest_tags) do
     <<integer::big-size(32), rest::binary>> = binary
-    {integer, rest}
+    {integer, rest, rest_tags}
   end
 
   @doc section: :type
   @doc """
   Decodes a 64-bit integer from the head of the binary.
 
-  Returns a tuple with the first element the integer value, and the second element the remainding binary data.
+  Returns a tuple with the:
+  - first element: the integer value
+  - second element: the remaining binary data
+  - third element: the rest of the type tags to be processed.
   """
-  def integer_64bit(binary) do
+  def integer_64bit(binary, rest_tags) do
     <<integer::big-size(64), rest::binary>>=binary
-    {integer, rest}
+    {integer, rest, rest_tags}
   end
 
   @doc section: :type
   @doc """
   Decodes a 32-bit float from the head of the binary.
 
-  Returns a tuple with the first element the float value, and the second element the remainding binary data.
+  Returns a tuple with the first element the float value, and the second element the remaining binary data.
+
+  Returns a tuple with the:
+  - first element: the float value
+  - second element: the remaining binary data
+  - third element: the rest of the type tags to be processed.
   """
-  def float(binary) do
+  def float(binary, rest_tags) do
     <<float::big-float-size(32), rest::binary>> = binary
-    {float, rest}
+    {float, rest, rest_tags}
   end
 
   @doc section: :type
@@ -149,9 +170,12 @@ defmodule OSCx.Decoder do
 
   Any additional padding added to the string is removed.
 
-  Returns a tuple with the first element containg the string value, and the second element the remaining binary data.
+  Returns a tuple with the:
+  - first element: the string value
+  - second element: the remaining binary data
+  - third element: the rest of the type tags to be processed.
 
-  This is similar to the `OSCx.Decoder.blob/1` function.
+  This is similar to the `OSCx.Decoder.blob/2` function.
 
   ## Example
   ```
@@ -162,9 +186,9 @@ defmodule OSCx.Decoder do
   {"Hello, world!", ""}
   ```
   """
-  def string(binary) do
+  def string(binary, rest_tags) do
     [string, rest] = :binary.split(binary, <<0>>)
-    {string, Decoder.de_pad(string, rest)}
+    {string, Decoder.de_pad(string, rest), rest_tags}
   end
 
   @doc section: :type
@@ -178,9 +202,12 @@ defmodule OSCx.Decoder do
 
   Any additional padding added to the symbol is removed.
 
-  Returns a tuple with the first element containg the symbol value as an atom, and the second element the remaining binary data.
+  Returns a tuple with the:
+  - first element: the symbol as an atom (or string if default behaviour is changed, see below)
+  - second element: the remaining binary data
+  - third element: the rest of the type tags to be processed.
 
-  This is similar to the `OSCx.Decoder.string/1` function.
+  This is similar to the `OSCx.Decoder.string/2` function.
 
   ## Symbols become `:atoms` by default
   In this library, Elixir's atom type is considered an OSC Symbol type.
@@ -191,12 +218,12 @@ defmodule OSCx.Decoder do
 
   For more information, see `OSCx.Decoder.set_symbol_to_atom/1`.
   """
-  def symbol(binary) do
+  def symbol(binary, rest_tags) do
     [symbol, rest] = :binary.split(binary, <<0>>)
     de_padded_bin = Decoder.de_pad(symbol, rest)
-    # Convert Symbol type to Elixir atom, unless otherwise specified in the application config
+    # Convert Symbol type to Elixir atom, unless otherwise specified in the application environment
     symbol = if Application.get_env(:OSCx, :symbol_to_atom, true), do: String.to_atom(symbol), else: symbol
-    {symbol, de_padded_bin}
+    {symbol, de_padded_bin, rest_tags}
   end
 
 
@@ -208,13 +235,16 @@ defmodule OSCx.Decoder do
 
   Any additional padding added to the blob is removed.
 
-  Returns a tuple with the first element containg the blob value, and the second element the remaining binary data.
+  Returns a tuple with the:
+  - first element: the blob value
+  - second element: the remaining binary data
+  - third element: the rest of the type tags to be processed.
 
-  This is similar to the `OSCx.Decoder.string/1` function.
+  This is similar to the `OSCx.Decoder.string/2` function.
   """
-  def blob(binary) do
+  def blob(binary, rest_tags) do
     <<size::big-size(32), blob::binary-size(size), rest::binary >> = binary
-    {blob, Decoder.de_pad(size, rest)}
+    {blob, Decoder.de_pad(size, rest), rest_tags}
   end
 
   @doc section: :type
@@ -223,7 +253,10 @@ defmodule OSCx.Decoder do
 
   This function assumes that the binary starts with a time-tag.
 
-  Returns a tuple with the first element containg the time tag as a map, and the second element the remaining binary data.
+  Returns a tuple with the:
+  - first element: the map value for a time tag (see below)
+  - second element: the remaining binary data
+  - third element: the rest of the type tags to be processed.
 
   The time tag map is in the format:
   ```
@@ -234,9 +267,9 @@ defmodule OSCx.Decoder do
   - `fraction` is the fractional part of a second to a precision of about 200 picoseconds.
   Both of these are 32-bit integers.
   """
-  def time(binary) do
+  def time(binary, rest_tags) do
     <<seconds::big-size(32), fraction::big-size(32), rest::binary>> = binary
-    {%{seconds: seconds, fraction: fraction}, rest}
+    {%{seconds: seconds, fraction: fraction}, rest, rest_tags}
   end
 
   @doc section: :type
@@ -245,13 +278,31 @@ defmodule OSCx.Decoder do
 
   This function assumes that the binary starts with a MIDI message.
 
-  Returns a tuple with the first element containg a map with a MIDI value `%{midi: value}`, and the second element the remaining binary data.
+  Returns a tuple with the:
+  - first element: a map with a 4-byte MIDI value, in the format: `%{midi: value}`
+  - second element: the remaining binary data
+  - third element: the rest of the type tags to be processed.
   """
-  def midi(binary) do
+  def midi(binary, rest_tags) do
     <<value::binary-size(4), rest::binary>> = binary
-    {%{midi: value}, rest}
+    {%{midi: value}, rest, rest_tags}
   end
 
+  @doc section: :type
+  @doc """
+  Parses a list (or array as it is called in OSC).
+
+  Returns a tuple with the:
+  - first element: a list containing the decoded array data
+  - second element: the remaining binary data
+  - third element: the rest of the type tags to be processed.
+  """
+  def list(binary, type_tag_string) do
+    array_tags = Enum.take_while(type_tag_string, fn char -> char != ?] end)
+    rem_tag_type_string = type_tag_string -- (array_tags ++ ~c"]")
+    {decoded_array_data, rest_arg_data} = decode_arg(array_tags, binary)
+    {decoded_array_data, rest_arg_data, rem_tag_type_string}
+  end
 
   @doc section: :helper
   @doc """

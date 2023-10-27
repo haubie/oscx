@@ -51,6 +51,7 @@ defmodule OSCx.Encoder do
   | h        | 104            | 64-bit big-endian two’s complement integer | 1.0 non-standard |
   | m        | 109            | 4 byte MIDI message | 1.0 non-standard |
   | t        | 116            | OSC time tag    | 1.1+ required    |
+  | [ and ]  | 91 and 93      | List            | 1.0 non-standard    |
   | T        | 84             | True (tag only, no arguments) | 1.1+ required |
   | F        | 80             | False (tag only, no arguments) | 1.1+ required |
   | N        | 78             | Null (tag only, no arguments) | 1.1+ required |
@@ -77,6 +78,9 @@ defmodule OSCx.Encoder do
   # Returns the type 115 (string), and a list containing the string with any required padding:
   {115, <<104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 0>>}
   ```
+
+  ## More information
+  To learn more about how this library encodes and decodes data, see: [Arguments and types](arguments_and_types.md).
   """
 
   ## ----------------
@@ -163,17 +167,28 @@ defmodule OSCx.Encoder do
   """
   def encode_arg(value) when is_integer(value), do: integer(value)
   def encode_arg(value) when is_float(value), do: float(value)
-  def encode_arg(value) when is_atom(value), do: to_string(value) |> encode_arg()
+  def encode_arg(value) when is_atom(value), do: symbol(value)
   def encode_arg(value) when is_bitstring(value), do: String.printable?(value) && string(value) || blob(value)
   def encode_arg(value) when is_time_map(value), do: time(value)
   def encode_arg(value) when is_midi_map(value), do: midi(value)
-  def encode_arg(value) when is_list(value), do: Enum.map(value, &encode_arg(&1))
+  def encode_arg(value) when is_list(value), do: list(value)
   def encode_arg(_value), do: {:error, "Unknown type"}
 
 
   ## --------------
   ## TYPE ENCODING
   ## --------------
+
+  @doc section: :tag
+  @doc """
+  Encodes a list.
+
+  Returns a tuple with the first element containing the OSC array type tags, and the second element containing the binary encoded array data.
+  """
+  def list(value) do
+    {sub_types, sub_values} = Enum.map(value, &encode_arg(&1)) |> Enum.unzip()
+    {[~c"[", sub_types, ~c"]"], Enum.join(sub_values, <<>>)}
+  end
 
   @doc section: :type
   @doc """
@@ -191,6 +206,8 @@ defmodule OSCx.Encoder do
   def integer(value) when is_integer(value) and abs(value) < @two_complement_integer_size, do: {?h, <<value::big-size(64)>>}
 
   @doc section: :type
+  @spec time(%{:fraction => integer(), :seconds => integer(), optional(any()) => any()}) ::
+          {116, <<_::64>>}
   @doc """
   OSC-timetag: 64 bit, big-endian, fixed-point floating point number
 
@@ -212,6 +229,13 @@ defmodule OSCx.Encoder do
   OSC-string: a sequence of non-null ASCII characters followed by 1-4 null characters – total string bytes must be a multiple of 4
   """
   def string(value) when is_bitstring(value), do: {?s, pad(value) |> List.to_string()}
+
+
+  @doc section: :type
+  @doc """
+  OSC-symbol: an alternative to strings in OSC systems, used for 'symbols' which are conceptually equivalent to Atoms in Elixir.
+  """
+  def symbol(value) when is_atom(value), do: {?S, value |> to_string() |> pad() |> List.to_string()}
 
   @doc section: :type
   @doc """

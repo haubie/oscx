@@ -21,6 +21,7 @@ defmodule OSCx.MixProject do
         assets: "assets",
         extras: [
           "README.md",
+          "arguments_and_types.md",
           "livebook/oscx_tour.livemd",
           {:"LICENSE", [title: "License (MIT)"]},
         ],

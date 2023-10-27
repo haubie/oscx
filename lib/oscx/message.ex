@@ -182,7 +182,7 @@ defmodule OSCx.Message do
 
     special_tag_types = Decoder.tag(tag_type_string)
     tag_type_string = drop_special_string_tags(tag_type_string)
-    args = Decoder.decode_arg(to_charlist(tag_type_string), args_data)
+    {args, _rem_data} = Decoder.decode_arg(to_charlist(tag_type_string), args_data)
 
     %Message{address: address, arguments: args, tag_types: special_tag_types}
   end
