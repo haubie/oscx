@@ -95,7 +95,7 @@ port_num = 8000
 <!-- livebook:{"output":true} -->
 
 ```
-{:ok, #Port<0.12>}
+{:ok, #Port<0.8>}
 ```
 
 Now the port is open, lets send our message using `:gen_udp.send/4` as below:
@@ -136,14 +136,17 @@ encoded_osc_msg =
 
 This message has a mix of OSC types and values:
 
-* integer
-* float
-* array (list in Elixir) containing Strings
-* string of `"Hello, world"`
-* true
-* false
-* null (`nil` in Elixir)
-* impulse (`:impulse` atom in Elixir)
+| OSC type | Elixir type                | Elixir example   |
+| -------- | -------------------------- | ---------------- |
+| Integer  | Integer                    | `1`              |
+| Float    | Float                      | `2.0`            |
+| Array    | List                       | `[1, 2, 3]`      |
+| String   | String                     | `"Hello world"`  |
+| Symbol   | Atom                       | `:A`             |
+| True     | true                       | `true`           |
+| False    | false                      | `false`          |
+| Null     | nil                        | `nil` or `:null` |
+| Impulse  | Atom (of value `:impulse`) | `:impulse`       |
 
 Let's send it as before:
 
@@ -160,6 +163,15 @@ Let's send it as before:
 You should now see our richer OSC message on the second line in Protokol:
 ![](files/protokol-screenshot-02.png)
 Unfortunately Protokol doesn't show the array of symbols. This is something you may come across in OSC. Some types are optional parts of the OSC standard and are not implemented on all software.
+
+Examples of some optional or non-standard types are:
+
+* Symbols (e.g. Atoms in Elixir)
+* 64-bit integers or floats
+* Single ASCII character
+* RGBA colour
+* MIDI message
+* Array (e.g. List in Elixir)
 
 You can send an OSC array of other data instead:
 
@@ -180,39 +192,59 @@ bin_osc_msg =
 :ok
 ```
 
-You can see on the third line that the list values in the last wa also received:
+You can see on the third line that the list values in the last was also received:
 ![](files/protokol-screenshot-03.png)
 
 ## Recieving OSC messages
 
+Using OSC to send and recieve messages from audio software is a common use-case.
+
+This example assumes SuperCollider is installed and running on the same machine as this Livebook.
+
+### Install SuperCollider
+
+In this example we'll use [SuperCollider](https://supercollider.github.io/). SuperCollider is an 'audio synthesis and algorithmic composition platform'. It's used by musicials, artists and researchers working with sound.
+
+We can interact with SuperCollider using OSC to produce audio.
+
+SuperCollider is available on a range of platforms: https://supercollider.github.io/downloads
+
+### Boot SuperCollider
+
+Launch SuperCollider, and from it's meny, select **Server > Boot Server** for it to boot.
+
+### Create a GenServer
+
+SuperCollider listents to UDP port `57110` by default. We'll use the GenServer's state to hold the UDP socket, and implement a `handle_info` callback where we'll recieve UDP messages from SuperCollider.
+
 ```elixir
-defmodule Listner do
+defmodule SC do
   use GenServer
 
+  @impl true
   def init(_state) do
-    # IP or host and port number for the UDP connection
+    # Open a port and add the UDP socket to the state
+    {:ok, socket} = :gen_udp.open(0, [:binary, {:active, true}])
+
+    {:ok, socket}
+  end
+
+  @impl true
+  def handle_cast({:send, osc_bin_msg}, state) do
     # This could be changed to named address, like 'localhost'
-    ip_address = ~c"127.0.0.1"
+    ip_address = ~c"localhost"
+    sc_port_num = 57110
+    :gen_udp.send(state, ip_address, sc_port_num, osc_bin_msg)
 
-    # Open a port
-    {:ok, port} = :gen_udp.open(0, [:binary, {:active, true}])
-
-    {:ok, port}
+    {:noreply, state}
   end
 
-  def send(msg) do
-    ip_address = ~c"127.0.0.1"
-    :gen_udp.send(0, ip_address, 8000, msg)
-    :gen_udp.send(port, ip_address, port_num, encoded_osc_msg)
-  end
-
+  @impl true
   def handle_info(msg, state) do
-    IO.inspect(msg)
-
     case msg do
       {:udp, _process_port, _ip_addr, _port_num, res} ->
         IO.inspect(res, label: "Binary message recieved")
-        IO.inspect(Message.decode(res), label: "Decoded message")
+        IO.inspect(Message.decode(res), label: "\nDecoded message")
         state
 
       _ ->
@@ -221,49 +253,130 @@ defmodule Listner do
 
     {:noreply, state}
   end
+
+  def start_link() do
+    GenServer.start_link(SC, nil)
+  end
+
+  def send(pid, osc_bin_msg) do
+    GenServer.cast(pid, {:send, osc_bin_msg})
+  end
 end
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-warning: variable "ip_address" is unused (if the variable is not meant to be used, prefix it with an underscore)
-  oscx_tour.livemd#cell:wkmer4wsveb4egznosurwtnsc57ezohp:7: Listner.init/1
+{:module, SC, <<70, 79, 82, 49, 0, 0, 20, ...>>, {:send, 2}}
+```
 
+Let's start our GenServer so it's ready to send and receive messages:
+
+```elixir
+{:ok, sc_pid} = SC.start_link()
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, Listner, <<70, 79, 82, 49, 0, 0, 20, ...>>, {:handle_info, 2}}
+{:ok, #PID<0.233.0>}
 ```
 
+Let's create a simple message and watch for a response.
+
+One of the simplest messages to SuperCollider is sending a message with the address `"/status"` and no arguments:
+
 ```elixir
-{:ok, listener_pid} = GenServer.start_link(Listner, nil)
+encoded_osc_msg =
+  %Message{address: "/status"}
+  |> OSCx.encode()
+
+SC.send(sc_pid, encoded_osc_msg)
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-{:ok, #PID<0.298.0>}
+:ok
 ```
+
+<!-- livebook:{"output":true} -->
+
+```
+Binary message recieved: <<47, 115, 116, 97, 116, 117, 115, 46, 114, 101, 112, 108, 121, 0, 0, 0, 44,
+  105, 105, 105, 105, 105, 102, 102, 100, 100, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 111, 60, 231, ...>>
+
+Decoded message: %OSCx.Message{
+  address: "/status.reply",
+  arguments: [1, 0, 0, 2, 111, 0.028276298195123672, 0.0825410708785057]
+}
+```
+
+If successfull, you'll see from `IO.inspect` the binary OSC message recieved e.g. `<<47, 115, 116...>>` and it decoded as a struct:
+
+```
+%OSCx.Message{
+  address: "/status.reply",
+  arguments: [1, 0, 0, 2, 111, 0.029667392373085022, 0.14714068174362183]
+}
+```
+
+##### Address
+
+Notice how SuperCollider sends the same address back as we sent but with ".reply" appended to it: `"/status.reply"`. When sending commands to SuperCollider, replies will often follow this convention.
+
+##### Arguments
+
+The arguments have meaning in SuperCollider, but you can see a mixture of integers and floats were returned.
+
+Let's try another simple message, this time we'll send a message with the address `"/version"` and no arguments:
 
 ```elixir
-Listner.send(encoded_osc_msg)
+encoded_osc_msg =
+  %Message{address: "/version"}
+  |> OSCx.encode()
+
+SC.send(sc_pid, encoded_osc_msg)
 ```
 
-```elixir
+<!-- livebook:{"output":true} -->
 
 ```
-
-```elixir
-
+:ok
 ```
 
-```elixir
+<!-- livebook:{"output":true} -->
 
 ```
+Binary message recieved: <<47, 118, 101, 114, 115, 105, 111, 110, 46, 114, 101, 112, 108, 121, 0, 0, 44,
+  115, 105, 105, 115, 115, 115, 0, 115, 99, 115, 121, 110, 116, 104, 0, 0, 0, 0,
+  3, 0, 0, 0, 13, 46, 48, 0, 0, 86, 101, 114, 115, 105, 111, ...>>
 
-```elixir
+Decoded message: %OSCx.Message{
+  address: "/version.reply",
+  arguments: ["scsynth", 3, 13, ".0", "Version-3.13.0", "3188503"]
+}
+```
+
+In this case, you can see version information sent back in the decoded message arguments:
 
 ```
+%OSCx.Message{
+  address: "/version.reply",
+  arguments: ["scsynth", 3, 13, ".0", "Version-3.13.0", "3188503"]
+}
+```
+
+You message may be slightly different to this, depending on what you've installed locally.
+
+## Wrap up
+
+This ends the simple tour of the OSCx library.
+
+In summary:
+
+* Create OSCx messages by using the `%OSCx.Message{}` struct
+* Encode them with `OSCx.encode/1`
+* You can send and recieve OSC messages via UDP, using Erlang's `:gen_utp` library.
+* When receiving messages, as with our SuperCollider example above, use the `OSCx.decode/1` function and it will parse the binary OSC message and populate the `%OSCx.Message{}` struct for you.

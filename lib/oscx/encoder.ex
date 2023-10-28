@@ -165,6 +165,11 @@ defmodule OSCx.Encoder do
   {104, <<127, 255, 255, 255, 255, 255, 255, 148>>}
   ```
   """
+  def encode_arg(value) when (value==true), do: {?T, nil}
+  def encode_arg(value) when (value==false), do: {?F, nil}
+  def encode_arg(value) when (value in [nil, :null]), do: {?N, nil}
+  def encode_arg(value) when (value==:impulse), do: {?I, nil}
+
   def encode_arg(value) when is_integer(value), do: integer(value)
   def encode_arg(value) when is_float(value), do: float(value)
   def encode_arg(value) when is_atom(value), do: symbol(value)
@@ -262,9 +267,9 @@ defmodule OSCx.Encoder do
   ## TAG SPECIFIC
   ## --------------
 
-  @doc section: :tag
+  @doc section: :helper
   @doc """
-  Encode a tag based on an Elixir type or special atom.
+  A helper function to encode a tag based on an Elixir type or special atom.
 
   This function accepts the following Elixir types and returns the equivalent OSC string tag type character as below:
 
@@ -273,7 +278,7 @@ defmodule OSCx.Encoder do
   | false | False | F |
   | nil | Null | N |
   | :null | Null | N |
-  | :impulse | Impulse | I |
+  | :impulse | Impulse (also known as Infinitum in OSC 1.0 Spec, or 'Bang') | I |
   """
   def tag(values) when is_list(values), do: Enum.map(values, &tag(&1)) |> List.to_string()
   def tag(true), do: tag_true()
@@ -281,6 +286,7 @@ defmodule OSCx.Encoder do
   def tag(nil), do: tag_null()
   def tag(:null), do: tag_null()
   def tag(:impulse), do: tag_impulse()
+  def tag(_), do: <<>>
 
   @doc section: :tag
   @doc """
@@ -309,6 +315,8 @@ defmodule OSCx.Encoder do
   @doc section: :tag
   @doc """
   Used to encode *impulse* into the tag type string.
+
+  Impulse is also known as Infinitum in OSC 1.0 Spec, or 'Bang'.
 
   True equates to the charater 'I'.
   """

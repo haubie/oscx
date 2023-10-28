@@ -37,7 +37,7 @@ defmodule OSCx.Decoder do
   | T        | 84             | True (tag only, no arguments) | 1.1+ required |
   | F        | 80             | False (tag only, no arguments) | 1.1+ required |
   | N        | 78             | Null (tag only, no arguments) | 1.1+ required |
-  | I        | 73             | Impulse (tag only, no arguments) | 1.1+ required |
+  | I        | 73             | Impulse, also known as Infinitum in the OSC 1.0 Spec, or 'Bang' (tag only, no arguments) | 1.1+ required |
 
   ## More information
   To learn more about how this library decodes and encodes data, see: [Arguments and types](arguments_and_types.md).
@@ -112,11 +112,44 @@ defmodule OSCx.Decoder do
         ?t -> Decoder.time(arg_data, rest_tags)
         ?S -> Decoder.symbol(arg_data, rest_tags)
         ?[ -> Decoder.list(arg_data, rest_tags)
+        ?T -> Decoder.special_tag(arg_data, rest_tags, true)
+        ?F -> Decoder.special_tag(arg_data, rest_tags, false)
+        ?N -> Decoder.special_tag(arg_data, rest_tags, nil)
+        ?I -> Decoder.special_tag(arg_data, rest_tags, :impulse)
         _other -> {:other, arg_data, rest_tags}
       end
 
     decode_arg(rest_tags, rest_arg_data, [decoded_data | acc])
   end
+
+
+
+
+  @doc section: :type
+  @doc """
+  Decodes 'special' string tag types without arguments, such as: True, False, Null and Impulse.
+
+  This function is used by `decode_arg/3` as part of the decoding process. It takes the following parameters:
+  - argument data (binary)
+  - charlist of remaing tags to process
+  - the value to return (e.g. `true` for `?T`)
+
+  OSC specifies a number of tags which don't carry arguments. These are:
+
+  | Type tag | Unicode number | OSC Type                      | OSC spec version | Elixir value |
+  | -------- | -------------- | ----------------------------- | ---------------- | ------------ |
+  | T        | 84             | True (tag only, no arguments) | 1.1+ required    | `true`       |
+  | F        | 80             | False (tag only, no arguments)  | 1.1+ required  | `false`      |
+  | N        | 78             | Null (tag only, no arguments) | 1.1+ required    | `nil`        |
+  | I        | 73             | Impulse, also known as Infinitum in the OSC 1.0 Spec, or 'Bang' (tag only, no arguments) | 1.1+ required | `:impulse` |
+
+  Returns a tuple with the:
+  - first element: the decoded value as an Elixir type
+  - second element: the remaining binary data (unlike other functions, this leaves the binary data unchanged)
+  - third element: the rest of the type tags to be processed (this is also left unchanged).
+  """
+  def special_tag(arg_data, rest_tags, tag_value), do: {tag_value, arg_data, rest_tags}
+
 
   @doc section: :type
   @doc """
@@ -316,7 +349,7 @@ defmodule OSCx.Decoder do
   | True | T | true |
   | False | F | false |
   | Null | N | nil |
-  | Impulse | I | :impulse |
+  | Impulse or Infinitum or 'Bang' | I | :impulse |
 
   Return type is a list of zero or more of the above.
 
@@ -471,7 +504,7 @@ defmodule OSCx.Decoder do
   - true: OSC Symbols are converted to Elixir atoms. This is the default behaviour.
   - false: OSC Symbols are converted to Elixir strings.
 
-  This function changes the `:OSCx, :symbol_to_atom` application evironment, e.g.: `Application.get_env(:OSCx, :symbol_to_atom, false)`.
+  This function changes the `:OSCx, :symbol_to_atom` application evironment, e.g.: `Application.put_env(:OSCx, :symbol_to_atom, false)`.
 
   ## Why this option?
   Uncontrolled dynamic creation of atoms on the BEAM may not be considered good practice.

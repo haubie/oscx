@@ -2,20 +2,29 @@ defmodule OSCx.Message do
   @moduledoc """
   A module and struct for manipulating and representing OSC messages.
 
-  The struct has three keys:
+  The struct has two keys:
   - `address:` representing the OSC address. Defaults to the root address of `"/"`
   - `arguments:` an Elixir list of arguments. Defults to an empty list `[]`.
-  - `tag_types:` not often used, but contains a list of special tags which aren't encoded in arguments. These are:
-      - `true` which encodes to the OSC type: True
-      - `false` which encodes to the OSC type: False
-      - `nil` or `:null` which encodes to the OSC type: Null
-      - `:impulse` which encodes to the OSC type: Impulse
 
-      Zero, one or more of these can be included in a list. Defults to an empty list `[]`.
+  The arguments list can include a range of values, such as:
+  - Integer, e.g. `1`
+  - Float, e.g. `4.2`
+  - String, e.g. `"Hello, world"`
+  - Bitstring (binary), e.g. `<<10, 123, 34, 56>>` (encodes to an OSC Blob)
+  - Atom, e.g. `:tremelo` (encodes to an OSC Symbol)
+  - `%{midi: value}` (encodes the the *4-byte* value to an OSC MIDI type)
+  - `%{seconds: seconds, fraction: fraction}` (encodes to an OSC Time tag)
+  - List, e.g. `[1, 2, 3]` (encodes to an OSC Array)
+  - `true` which encodes to the OSC type: True
+  - `false` which encodes to the OSC type: False
+  - `nil` or `:null` which encodes to the OSC type: Null
+  - `:impulse` which encodes to the OSC type: Impulse
 
   The two main functions are:
   - `encode/1` which takes an `%OSCx.Message{}` struct and encodes it to the OSC message format
   - `decode/1` which takes an OSC message recieved (e.g. via UDP) and decodes it into an `%OSCx.Message{}` struct.
+
+  To learn more about how this library encodes and decodes OSC data, see: [Arguments and types](arguments_and_types.md).
 
   ## Structure of OSC messages
   OSC messages are made up of three parts:
@@ -85,9 +94,7 @@ defmodule OSCx.Message do
   ## More information
   See the OSC specification website at: https://opensoundcontrol.stanford.edu/index.html
   """
-  defstruct address: "/", arguments: [], tag_types: []
-
-  @special_tag_types [?T, ?F, ?N, ?I]
+  defstruct address: "/", arguments: []
 
   alias OSCx.Message
   alias OSCx.Encoder
@@ -148,7 +155,7 @@ defmodule OSCx.Message do
     encoded_arguments = Enum.map(message.arguments, &Encoder.encode_arg(&1))
     # Arbitary length data like strings in the address and tag_type_string may need padding
     address = Encoder.pad(message.address) |> List.to_string()
-    tag_type_string = "," <> Encoder.type_tag_string(encoded_arguments) <> Encoder.tag(message.tag_types) |> Encoder.pad() |> Enum.join(<<>>)
+    tag_type_string = "," <> Encoder.type_tag_string(encoded_arguments) |> Encoder.pad() |> Enum.join(<<>>)
     arguments = Encoder.encoded_value(encoded_arguments) |> List.flatten() |> Enum.join(<<>>)
 
     # Encoded message is: <OSC Address Pattern> followed by an <OSC Type Tag String> followed by <zero or more OSC Arguments>.
@@ -174,18 +181,14 @@ defmodule OSCx.Message do
     # Split the message into the <address>, <tag_type_string> and <arguments>:
     # 1. Decode the address
     # 2. Decode tag type string
-    # 3. Extract special type tags (if any)
-    # 4. Decode arguments (main data payload)
+    # 3. Decode arguments (main data payload)
 
     {address, rest} = Decoder.address(message)
     {tag_type_string, args_data} = Decoder.tag_list(rest)
 
-    special_tag_types = Decoder.tag(tag_type_string)
-    tag_type_string = drop_special_string_tags(tag_type_string)
     {args, _rem_data} = Decoder.decode_arg(to_charlist(tag_type_string), args_data)
 
-    %Message{address: address, arguments: args, tag_types: special_tag_types}
+    %Message{address: address, arguments: args}
   end
 
-  defp drop_special_string_tags(tag_type_string), do: tag_type_string |> to_charlist() |> Enum.filter(fn char -> char not in @special_tag_types end)
 end

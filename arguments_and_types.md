@@ -29,11 +29,11 @@ Chunk 4: [D] [D] [D] [D]
 From Elixir, arguments are added to an OSC message using the `%OSCx.Message{}` struct. For example, below is a message with an integer of `2`, a float of `440.5` and a string `"phaser"`:
 ```
 iex> %OSCx.Message{arguments: [2, 440.5, "phaser"]}
-%OSCx.Message{address: "/", arguments: [2, 440.5, "phaser"], tag_types: []}
+%OSCx.Message{address: "/", arguments: [2, 440.5, "phaser"]}
 ``` 
 The following table shows how these and other Elixir types are encoded to OSC types:
 
-| Elixir type      | Example                     | OSC type                                   | OSC spec version |
+| Elixir type      | Example argument value      | OSC type                                   | OSC spec version |
 | ---------------- | --------------------------- | ------------------------------------------ | ---------------- |
 | Integer (32 bit) | `2`                         | 32-bit integer                             | 1.0+ required    |
 | Integer (64 bit) | `9_223_372_036_854_775_800` | 64-bit big-endian two’s complement integer | 1.0 non-standard |
@@ -41,35 +41,12 @@ The following table shows how these and other Elixir types are encoded to OSC ty
 | String           | `"phaser"`                  | String                                     | 1.0+ required    |
 | Bitstring        | `<<1, 126, 40, 33>>`        | Blob                                       | 1.0+ required    |
 | Atom             | `:loud`                     | Symbol                                     | 1.0 non-standard |
-| Map with `:seconds` and `:fraction` keys | `%{seconds: ___, fraction: ___ }` | Time tag     | 1.1+ required    |
-| Map with `:midi` key | `%{midi: ___ }`         | 4 byte MIDI message                        | 1.0 non-standard |
+| Map with `:seconds` and `:fraction` keys | `%{seconds: _, fraction: _ }` | Time tag         | 1.1+ required    |
+| Map with `:midi` key | `%{midi: _ }`           | 4 byte MIDI message                        | 1.0 non-standard |
 | List             | `[1, 2, 3]`                 | Array                                      | 1.0 non-standard |
 
-## Non-argument data
-There is also some data that isn't encoded as an argument, but rather, stored in the tag type string of the message. These are 'special types' and infrequently used:
-- **True** (use `true` in Elixir)
-- **False** (use `false` in Elixir)
-- **Null** (use `nil` or `:null` in Elixir)
-- **Impulse** (use `:impulse` in Elixir)
-
-To include one of these tag types, just add them to `tag_types: []` in the `%OSCx.Message{}` struct, for example:
-```
-iex> iex> %OSCx.Message{tag_types: [true]}
-%OSCx.Message{
-  address: "/",
-  arguments: [],
-  tag_types: [true]
-}
-
-iex> iex> %OSCx.Message{tag_types: [:impulse]}
-%OSCx.Message{
-  address: "/",
-  arguments: [],
-  tag_types: [:impulse]
-}
-```
-
-The following table shows how these special types types are encoded into the OSC type string:
+### 'Special' types
+There are also some types that are encoded differently as they don't carry a variable value like those above:
 
 | Elixir value                | OSC type                                   | OSC spec version |
 | --------------------------- | ------------------------------------------ | ---------------- |
@@ -77,9 +54,24 @@ The following table shows how these special types types are encoded into the OSC
 | `false`                     | False                                      | 1.1+ required    |
 | `nil`                       | Null                                       | 1.1+ required    |
 | `:null`                     | Null                                       | 1.1+ required    |
-| `:impulse`                  | Impulse                                    | 1.1+ required    |
+| `:impulse`                  | Impulse (also known as Infinitum in OSC 1.0 Spec, or 'Bang')  | 1.1+ required    |
 
+![OSC message diagram](assets/osc-message-special.png)
 
+These can be used in the same way by including them within the `arguments: []` list in the `%OSCx.Message{}` struct, for example:
+```
+iex> iex> %OSCx.Message{arguments: [true]}
+%OSCx.Message{
+  address: "/",
+  arguments: [true],
+}
+
+iex> iex> %OSCx.Message{arguments: [:impulse, 1.0, false, "hello"]}
+%OSCx.Message{
+  address: "/",
+  arguments: [:impulse, 1.0, false, "hello"]
+}
+```
 ## How OSC types are decoded to Elixir types
 
 ### Decoding of arguments
@@ -96,8 +88,8 @@ Decoding is simply the reverse of the above, where the following OSC type become
 #### Symbols, Atoms and Strings
 By default, Symbols are converted to Elixir atoms. This behaviour can be changed to return a string instead. See `OSCx.Decoder.set_symbol_to_atom/1`.
 
-### Decoding of special tag types
-The special types of **True**, **False**, **Null**, **Impulse** will be decoded to `true`, `false`, `nil`, `:impulse` respectively an stored in `tag_types: []` in the `%OSCx.Message{}` struct, e.g.:
+### Decoding of 'special' types
+The types of **True**, **False**, **Null**, **Impulse** will be decoded to `true`, `false`, `nil`, `:impulse` respectively and stored in `arguments: []` list of the `%OSCx.Message{}` struct, e.g.:
 ```
 %OSCx.Message{
   address: "/",
