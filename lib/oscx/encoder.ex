@@ -198,8 +198,18 @@ defmodule OSCx.Encoder do
   @doc section: :type
   @doc """
   Encodes a 4-byte MIDI message.
+
+  The OSC defines the 4 byte MIDI messages as bytes from MSB to LSB are: port id, status byte, data1, data2.
+
+  If only a 3 byte message is provided (e.g. a status byte followed by two data bytes), a port id of <<0>> is prepended to make 4 bytes.
+
+  Key:
+  MSB = Most significant byte
+  LSB = Least singificant byte
   """
-  def midi(value), do: {?m, <<value::binary-size(4)>>}
+  def midi(%{midi: value}) when is_binary(value) and byte_size(value) == 3, do: {?m, <<0>> <> value} # might be wrong approach, prepending 0
+  def midi(%{midi: value}) when is_binary(value) and byte_size(value) == 4, do: {?m, value}
+  def midi(%{midi: value}), do: {?m, <<value::binary-size(4)>>}
 
   @doc section: :type
   @doc """

@@ -1,4 +1,4 @@
-<!-- livebook:{"file_entries":[{"name":"protokol-screenshot-01.png","type":"attachment"},{"name":"protokol-screenshot-02.png","type":"attachment"},{"name":"protokol-screenshot-03.png","type":"attachment"}],"persist_outputs":true} -->
+<!-- livebook:{"file_entries":[{"name":"protokol-screenshot-01.png","type":"attachment"},{"name":"protokol-screenshot-02.png","type":"attachment"},{"name":"protokol-screenshot-03.png","type":"attachment"},{"name":"protokol-screenshot-04.png","type":"attachment"}],"persist_outputs":true} -->
 
 # OSCx tour
 
@@ -95,7 +95,7 @@ port_num = 8000
 <!-- livebook:{"output":true} -->
 
 ```
-{:ok, #Port<0.8>}
+{:ok, #Port<0.10>}
 ```
 
 Now the port is open, lets send our message using `:gen_udp.send/4` as below:
@@ -195,6 +195,36 @@ bin_osc_msg =
 You can see on the third line that the list values in the last was also received:
 ![](files/protokol-screenshot-03.png)
 
+<!-- livebook:{"break_markdown":true} -->
+
+MIDI messages via OSC can also be sent by wrapping the binary MIDI message in a `%{midi: value}` map as follows:
+
+```elixir
+bin_osc_msg =
+  %Message{
+    address: "/some/address",
+    arguments: [%{midi: <<0x90, 60, 127>>}]
+  }
+  |> OSCx.encode()
+
+:gen_udp.send(port, ip_address, port_num, bin_osc_msg)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+You should see the MIDI message type and data appear in the Protokol screen:
+![](files/protokol-screenshot-04.png)
+
+<!-- livebook:{"break_markdown":true} -->
+
+The OSC Spec requires a 4-byte MIDI message, defined as: port id, status byte, data1, and data2.
+
+However, MIDI messages are predominatly consist of 3-bytes (a status byte, followed by 2 data bytes). If a 3 byte MIDI message is given, OSCx will prepend a port ID of `<<0>>` to make up the 1 byte difference.
+
 ## Recieving OSC messages
 
 Using OSC to send and recieve messages from audio software is a common use-case.
@@ -211,11 +241,11 @@ SuperCollider is available on a range of platforms: https://supercollider.github
 
 ### Boot SuperCollider
 
-Launch SuperCollider, and from it's meny, select **Server > Boot Server** for it to boot.
+Launch SuperCollider, and from it's menu, select **Server > Boot Server** for it to boot.
 
 ### Create a GenServer
 
-SuperCollider listents to UDP port `57110` by default. We'll use the GenServer's state to hold the UDP socket, and implement a `handle_info` callback where we'll recieve UDP messages from SuperCollider.
+SuperCollider listents to UDP port `57110` by default. We'll use the GenServer's state to hold the UDP socket, and implement a `handle_info` callback where we'll receive UDP messages from SuperCollider.
 
 ```elixir
 defmodule SC do
@@ -243,7 +273,7 @@ defmodule SC do
   def handle_info(msg, state) do
     case msg do
       {:udp, _process_port, _ip_addr, _port_num, res} ->
-        IO.inspect(res, label: "Binary message recieved")
+        IO.inspect(res, label: "Binary message received")
         IO.inspect(Message.decode(res), label: "\nDecoded message")
         state
 
@@ -303,7 +333,7 @@ SC.send(sc_pid, encoded_osc_msg)
 <!-- livebook:{"output":true} -->
 
 ```
-Binary message recieved: <<47, 115, 116, 97, 116, 117, 115, 46, 114, 101, 112, 108, 121, 0, 0, 0, 44,
+Binary message received: <<47, 115, 116, 97, 116, 117, 115, 46, 114, 101, 112, 108, 121, 0, 0, 0, 44,
   105, 105, 105, 105, 105, 102, 102, 100, 100, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 111, 60, 231, ...>>
 
@@ -313,7 +343,7 @@ Decoded message: %OSCx.Message{
 }
 ```
 
-If successfull, you'll see from `IO.inspect` the binary OSC message recieved e.g. `<<47, 115, 116...>>` and it decoded as a struct:
+If successfull, you'll see from `IO.inspect` the binary OSC message received e.g. `<<47, 115, 116...>>` and it decoded as a struct:
 
 ```
 %OSCx.Message{
@@ -349,7 +379,7 @@ SC.send(sc_pid, encoded_osc_msg)
 <!-- livebook:{"output":true} -->
 
 ```
-Binary message recieved: <<47, 118, 101, 114, 115, 105, 111, 110, 46, 114, 101, 112, 108, 121, 0, 0, 44,
+Binary message received: <<47, 118, 101, 114, 115, 105, 111, 110, 46, 114, 101, 112, 108, 121, 0, 0, 44,
   115, 105, 105, 115, 115, 115, 0, 115, 99, 115, 121, 110, 116, 104, 0, 0, 0, 0,
   3, 0, 0, 0, 13, 46, 48, 0, 0, 86, 101, 114, 115, 105, 111, ...>>
 
@@ -378,5 +408,5 @@ In summary:
 
 * Create OSCx messages by using the `%OSCx.Message{}` struct
 * Encode them with `OSCx.encode/1`
-* You can send and recieve OSC messages via UDP, using Erlang's `:gen_utp` library.
+* You can send and receive OSC messages via UDP, using Erlang's `:gen_utp` library.
 * When receiving messages, as with our SuperCollider example above, use the `OSCx.decode/1` function and it will parse the binary OSC message and populate the `%OSCx.Message{}` struct for you.

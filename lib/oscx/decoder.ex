@@ -277,7 +277,7 @@ defmodule OSCx.Decoder do
   """
   def blob(binary, rest_tags) do
     <<size::big-size(32), blob::binary-size(size), rest::binary >> = binary
-    {blob, Decoder.de_pad(size, rest), rest_tags}
+    {blob, Decoder.de_pad(size-1, rest), rest_tags}
   end
 
   @doc section: :type

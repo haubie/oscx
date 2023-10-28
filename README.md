@@ -8,7 +8,7 @@ This is an *early version* which is still under development.
 
 Status:
 - Maintains a similar API to the older osc_ex library, so it should be a close to drop-in replacement
-- Currently message encoding and decoding should work.
+- Currently message encoding and decoding should work
 - Bundles have not yet been implemented but are the next priority.
 
 ## About this library
