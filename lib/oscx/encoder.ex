@@ -53,6 +53,7 @@ defmodule OSCx.Encoder do
   | c        | 99             | An ascii character, sent as 32 bits | 1.0 non-standard |
   | m        | 109            | 4 byte MIDI message | 1.0 non-standard |
   | t        | 116            | OSC time tag    | 1.1+ required    |
+  | r        | 144            | 32 bit RGBA color | 1.0 non-standard |
   | [ and ]  | 91 and 93      | List            | 1.0 non-standard    |
   | T        | 84             | True (tag only, no arguments) | 1.1+ required |
   | F        | 80             | False (tag only, no arguments) | 1.1+ required |
@@ -104,12 +105,18 @@ defmodule OSCx.Encoder do
   """
   defguard is_midi_map(value) when is_map(value) and is_map_key(value, :midi)
 
-
   @doc section: :helper
   @doc """
   Guard to test if a map for chars has been provided.
   """
   defguard is_char_map(value) when is_map(value) and is_map_key(value, :char)
+
+
+  @doc section: :helper
+  @doc """
+  Guard to test if a map for chars has been provided.
+  """
+  defguard is_rgba_map(value) when is_map(value) and is_map_key(value, :rgba)
 
   ## ----------------
   ## PRIMARY FUNCTION
@@ -188,6 +195,7 @@ defmodule OSCx.Encoder do
   def encode_arg(value) when is_time_map(value), do: time(value)
   def encode_arg(value) when is_midi_map(value), do: midi(value)
   def encode_arg(value) when is_char_map(value), do: char(value)
+  def encode_arg(value) when is_rgba_map(value), do: rgba(value)
   def encode_arg(value) when is_list(value), do: list(value)
   def encode_arg(_value), do: {:error, "Unknown type"}
 
@@ -281,7 +289,26 @@ defmodule OSCx.Encoder do
   def char(%{char: value}) when is_binary(value) and byte_size(value) == 1, do: {?c, <<:binary.first(value)::utf32>>}
   def char(%{char: value}) when is_list(value) and length(value) == 1, do: {?c, <<List.first(value)::utf32>>}
 
-  @doc section: :types
+
+
+  @doc section: :type
+  @doc """
+  RGBA: Encides a 32-bit RGBA color.
+
+  Takes as it's first parameter an `%{rgba: [r, g, b, a]}` map.
+
+  The map contains 4 integer values, repesenging R, G, B and A in that order.
+
+  ## Example
+  ```
+  iex> OSCx.Encoder.rgba(%{rgba: [255, 255, 60, 20]})
+  {114, <<255, 255, 60, 20>>}
+
+  ```
+  """
+  def rgba(%{rgba: [r,g,b,a]=value}) when is_list(value) and length(value) == 4, do: {?r, <<r::integer, g::integer, b::integer, a::integer>>}
+
+  @doc section: :type
   @doc """
   OSC-timetag: 64 bit, big-endian, fixed-point floating point number
 
@@ -425,6 +452,11 @@ defmodule OSCx.Encoder do
   end
 
   @doc section: :helper
+  @doc """
+  Adds padding to a value based on it's size.
+
+  This is used for types of variable length so that they're equal to 4-bytes in length, or a mutuple of 4-bytes.
+  """
   def pad(value) do
     case rem(:erlang.iolist_size(value), 4) do
       0 -> [value,<<0>>,<<0>>,<<0>>,<<0>>]
@@ -435,11 +467,16 @@ defmodule OSCx.Encoder do
   end
 
   @doc section: :helper
-  ## Default 32 bits for string and blobs, but packets are 64 bits
+  @doc """
+  Used for prepending the size of a value.
+
+  This is mainly used for prepending the size of a binary.
+
+  The size is encoded in 32 bits, but this can be overridden when needed.
+  """
   def prefix_size(value, size \\ 32) do
     byte_size = :erlang.iolist_size(value)
     <<byte_size::big-size(size)>> <> value
   end
-
 
 end

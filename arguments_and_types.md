@@ -45,6 +45,7 @@ The following table shows how these and other Elixir types are encoded to OSC ty
 | Map with `:seconds` and `:fraction` keys | `%{seconds: _, fraction: _ }` | Time tag         | 1.1+ required     |
 | Map with `:midi` key | `%{midi: _ }`           | 4 byte MIDI message                        | 1.0+ non-standard |
 | Map with `:char` key | `%{char: _}`            | ASCII char (32-bit)                        | 1.0+ non-standard |
+| Map with `:rgba` key with list of RGBA integers | `%{rgba: [255, 255, 90, 20]}` | 4-bit RGBA colour                          | 1.0+ non-standard |
 | List             | `[1, 2, 3]`                 | Array                                      | 1.0+ non-standard |
 
 ### 'Special' types
@@ -86,6 +87,7 @@ Decoding is simply the reverse of the above, where the following OSC type become
 - MIDI -> `%{midi: value}`
 - Time tag -> `%{seconds: seconds, fraction: fraction}`
 - ASCII Char -> `%{char: value}` where value will be a charlist
+- RGBA colour -> `%{rgba: [r, g, b, a]}` where there is an integer value for (r)ed, g(reen), b(lue) and a(lpha) colour channels.
 - Array -> List
 
 #### Symbols, Atoms and Strings

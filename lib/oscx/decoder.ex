@@ -24,6 +24,7 @@ defmodule OSCx.Decoder do
   | d        | 100            | 64 bit (“double”) IEEE 754 floating point number | 1.0 non-standard |
   | m        | 109            | 4 byte MIDI message | 1.0 non-standard |
   | t        | 116            | OSC time tag    | 1.1+ required    |
+  | r        | 144            | 32 bit RGBA color | 1.0 non-standard |
   | c        | 99             | An ascii character, sent as 32 bits | 1.0 non-standard |
   | S        | 83             | Symbol          | 1.0 non-standard    |
   | [ and ]  | 91 and 93      | List            | 1.0 non-standard    |
@@ -93,6 +94,7 @@ defmodule OSCx.Decoder do
   | m        | 109            | 4 byte MIDI message | 1.0 non-standard |
   | c        | 99             | An ascii character, sent as 32 bits | 1.0 non-standard |
   | t        | 116            | OSC time tag    | 1.1+ required    |
+  | r        | 144            | 32 bit RGBA color | 1.0 non-standard |
   | S        | 83             | Symbol          | 1.0 non-standard    |
   | [ and ]  | 91 and 93      | List            | 1.0 non-standard    |
 
@@ -121,6 +123,7 @@ defmodule OSCx.Decoder do
         ?S -> Decoder.symbol(arg_data, rest_tags)
         ?[ -> Decoder.list(arg_data, rest_tags)
         ?c -> Decoder.char(arg_data, rest_tags)
+        ?r -> Decoder.rgba(arg_data, rest_tags)
 
         # OSC Spec v1.1 required types
         ?T -> Decoder.special_tag(arg_data, rest_tags, true)
@@ -367,6 +370,22 @@ defmodule OSCx.Decoder do
   def midi(binary, rest_tags) do
     <<value::binary-size(4), rest::binary>> = binary
     {%{midi: value}, rest, rest_tags}
+  end
+
+  @doc section: :type
+  @doc """
+  Extracts a MIDI message from the head of the binary.
+
+  This function assumes that the binary starts with a MIDI message.
+
+  Returns a tuple with the:
+  - first element: a map with a 4-byte MIDI value, in the format: `%{midi: value}`
+  - second element: the remaining binary data
+  - third element: the rest of the type tags to be processed.
+  """
+  def rgba(binary, rest_tags) do
+    <<r::integer, g::integer, b::integer, a::integer, rest::binary>> = binary
+    {%{rbga: [r, g, b, a]}, rest, rest_tags}
   end
 
   @doc section: :type

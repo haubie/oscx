@@ -46,7 +46,7 @@ msg = %Message{address: "/status", arguments: []}
 
 ## Encode the message
 
-The `OSCx.message/1` function can be used to encode the struct to an OSC binary message.
+The `OSCx.encode/1` function can be used to encode the struct to an OSC binary message.
 
 ```elixir
 encoded_osc_msg = OSCx.encode(msg)
@@ -95,7 +95,7 @@ port_num = 8000
 <!-- livebook:{"output":true} -->
 
 ```
-{:ok, #Port<0.10>}
+{:ok, #Port<0.8>}
 ```
 
 Now the port is open, lets send our message using `:gen_udp.send/4` as below:
@@ -225,6 +225,25 @@ The OSC Spec requires a 4-byte MIDI message, defined as: port id, status byte, d
 
 However, MIDI messages are predominatly consist of 3-bytes (a status byte, followed by 2 data bytes). If a 3 byte MIDI message is given, OSCx will prepend a port ID of `<<0>>` to make up the 1 byte difference.
 
+If the OSC server (receiver) supports it (Protokol doens't), RGBA colours can be sent as follows:
+
+```elixir
+bin_osc_msg =
+  %Message{
+    address: "/some/address",
+    arguments: [%{rgba: [153, 234, 69, 1]}]
+  }
+  |> OSCx.encode()
+
+:gen_udp.send(port, ip_address, port_num, bin_osc_msg)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
 ## Recieving OSC messages
 
 Using OSC to send and recieve messages from audio software is a common use-case.
@@ -309,7 +328,7 @@ Let's start our GenServer so it's ready to send and receive messages:
 <!-- livebook:{"output":true} -->
 
 ```
-{:ok, #PID<0.233.0>}
+{:ok, #PID<0.272.0>}
 ```
 
 Let's create a simple message and watch for a response.
@@ -335,11 +354,12 @@ SC.send(sc_pid, encoded_osc_msg)
 ```
 Binary message received: <<47, 115, 116, 97, 116, 117, 115, 46, 114, 101, 112, 108, 121, 0, 0, 0, 44,
   105, 105, 105, 105, 105, 102, 102, 100, 100, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 111, 60, 231, ...>>
+  0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 111, 60, 201, ...>>
 
 Decoded message: %OSCx.Message{
   address: "/status.reply",
-  arguments: [1, 0, 0, 2, 111, 0.028276298195123672, 0.0825410708785057]
+  arguments: [1, 0, 0, 2, 111, 0.024587105959653854, 0.06639117002487183,
+   44100.0, 44099.94006284866]
 }
 ```
 
@@ -399,6 +419,56 @@ In this case, you can see version information sent back in the decoded message a
 ```
 
 You message may be slightly different to this, depending on what you've installed locally.
+
+#### Play a sound
+
+You can also try asking SuperCollider to play some audio:
+
+```elixir
+# Send a message to play the default sound with a new synth
+synth_definition_name = "default"
+synth_node_id = 400
+add_action = 0
+add_target_id = 0
+
+encoded_osc_msg =
+  %Message{
+    address: "/s_new",
+    arguments: [synth_definition_name, synth_node_id, add_action, add_target_id]
+  }
+  |> OSCx.encode()
+
+SC.send(sc_pid, encoded_osc_msg)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+SuperCollider's default tone should be playing.
+
+#### Stop the sound
+
+To stop the sound, evaluate the next cell:
+
+```elixir
+encoded_osc_msg =
+  %Message{
+    address: "/n_free",
+    arguments: [synth_node_id]
+  }
+  |> OSCx.encode()
+
+SC.send(sc_pid, encoded_osc_msg)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
 
 ## Wrap up
 
