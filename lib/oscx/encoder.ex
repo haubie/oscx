@@ -14,9 +14,9 @@ defmodule OSCx.Encoder do
 
   | Type        | Description |
   | ----------- | ----------- |
-  | **Integer** | a 32-bit signed integer |
-  | **Float**   | a 32-bit IEEE 754 floating-point number |
-  | **String**  | a sequence of printable ASCII characters |
+  | **Integer** | a 32-bit signed integer and also a 64-bit integer type) |
+  | **Float**   | a 32-bit IEEE 754 floating-point number and also a 64-bit double type |
+  | **String**  | a sequence of printable ASCII characters (there are also Symbols and Char types)|
   | **Blob**    | a sequence of arbitrary binary data, with its size prepended |
   | **Timetag** | a 64-bit fixed-point number that represents a time in seconds since midnight on January 1, 1900. The first 32 bits of the timetag represent the number of seconds, and the last 32 bits represent fractional parts of a second to a precision of about 200 picoseconds. |
 
@@ -49,6 +49,8 @@ defmodule OSCx.Encoder do
   | s        | 115            | String          | 1.0+ required    |
   | b        | 98             | Blob            | 1.0+ required    |
   | h        | 104            | 64-bit big-endian two’s complement integer | 1.0 non-standard |
+  | d        | 100            | 64 bit (“double”) IEEE 754 floating point number | 1.0 non-standard |
+  | c        | 99             | An ascii character, sent as 32 bits | 1.0 non-standard |
   | m        | 109            | 4 byte MIDI message | 1.0 non-standard |
   | t        | 116            | OSC time tag    | 1.1+ required    |
   | [ and ]  | 91 and 93      | List            | 1.0 non-standard    |
@@ -84,7 +86,7 @@ defmodule OSCx.Encoder do
   """
 
   ## ----------------
-  ## TIME GUARD
+  ## GUARDS
   ## ----------------
 
   @doc section: :helper
@@ -102,6 +104,12 @@ defmodule OSCx.Encoder do
   """
   defguard is_midi_map(value) when is_map(value) and is_map_key(value, :midi)
 
+
+  @doc section: :helper
+  @doc """
+  Guard to test if a map for chars has been provided.
+  """
+  defguard is_char_map(value) when is_map(value) and is_map_key(value, :char)
 
   ## ----------------
   ## PRIMARY FUNCTION
@@ -121,13 +129,16 @@ defmodule OSCx.Encoder do
   | String      | s            | 115            | String          |
   | Atom        | s            | 115            | String          |
   | Bitstring   | b            | 98             | Blob            |
+  | Integer (64 bit) | h       | 104            | 64-bit big-endian two’s complement integer |
+  | Float (64 bit) | d         | 104            | 64-bit big-endian two’s complement integer |
   | Time map    | t            | 116            | OSC time tag    |
   | MIDI map    | m            | 109            | 4-byte MIDI message |
-  | Integer (64 bit) | h       | 104            | 64-bit big-endian two’s complement integer |
+  | Char map    | c            | 99             | 4-byte ASCII character |
 
   Note the:
   - time map is in the format `%{seconds: seconds, fraction: fraction}` where seconds and fraction are 32-bit numbers.
-  - MIDI map is in the format `%{midi: value}` where the value is a 4 byte MIDI message.
+  - MIDI map is in the format `%{midi: value}` where the value is a 4 byte MIDI message
+  - Char map is in the format `%{char: value}` where value is a single character string (e.g. `"A"`), a single char (e.g. `'A'` or `~c"A"`) or an integer of an ASCII char (e.g. `65`).
 
   ## Return format
   The function will return a tuple with the first element containing the OSC type tag, and the second element the OSC encoded value such as `{105, <<0, 0, 0, 1>>}`.
@@ -176,6 +187,7 @@ defmodule OSCx.Encoder do
   def encode_arg(value) when is_bitstring(value), do: String.printable?(value) && string(value) || blob(value)
   def encode_arg(value) when is_time_map(value), do: time(value)
   def encode_arg(value) when is_midi_map(value), do: midi(value)
+  def encode_arg(value) when is_char_map(value), do: char(value)
   def encode_arg(value) when is_list(value), do: list(value)
   def encode_arg(_value), do: {:error, "Unknown type"}
 
@@ -199,9 +211,17 @@ defmodule OSCx.Encoder do
   @doc """
   Encodes a 4-byte MIDI message.
 
+  Takes as it's first parmeter a map with the key-value pair of: `%{midi: value}`.
+
+  ## Format of the value
   The OSC defines the 4 byte MIDI messages as bytes from MSB to LSB are: port id, status byte, data1, data2.
 
   If only a 3 byte message is provided (e.g. a status byte followed by two data bytes), a port id of <<0>> is prepended to make 4 bytes.
+
+  The MIDI value can be in any of these forms:
+  - Binary <<153, 77, 63>>
+  - List [153, 77, 63]
+  - An Elixir type which can be directly encoded to 4-byte binary value
 
   Key:
   MSB = Most significant byte
@@ -209,20 +229,59 @@ defmodule OSCx.Encoder do
   """
   def midi(%{midi: value}) when is_binary(value) and byte_size(value) == 3, do: {?m, <<0>> <> value} # might be wrong approach, prepending 0
   def midi(%{midi: value}) when is_binary(value) and byte_size(value) == 4, do: {?m, value}
+  def midi(%{midi: value}) when is_list(value) and length(value) == 3, do: {?m, :binary.list_to_bin([0] ++ value)}
+  def midi(%{midi: value}) when is_list(value) and length(value) == 4, do: {?m, :binary.list_to_bin(value)}
   def midi(%{midi: value}), do: {?m, <<value::binary-size(4)>>}
 
   @doc section: :type
   @doc """
-  32-bit integer: two’s complement, big-endian
+  Integer: 32-bit two’s complement big-endian or 64 bit big-endian two’s complement integer
+
+  This function encodes Elixir's integer types as follows:
+
+  | Type           | Lower value | Upper value | Comment |
+  | -------------- | ----------- | ----------- | ------- |
+  | 32 bit integer | -2_147_483_647 | 2_147_483_647 | This is 2^31 rounded |
+  | 64 bit integer | -9_223_372_036_854_775_808 | 9_223_372_036_854_775_808 | This is 2^63 rounded |
   """
-  @default_integer_size 2_147_483_647
-  @two_complement_integer_size 9_223_372_036_854_775_808
+  @default_integer_size 2_147_483_647 # 2^31 rounded
+  @two_complement_integer_size 9_223_372_036_854_775_808 # 2^63 rounded
   def integer(value) when is_integer(value) and abs(value) < @default_integer_size, do: {?i, <<value::big-size(32)>>}
   def integer(value) when is_integer(value) and abs(value) < @two_complement_integer_size, do: {?h, <<value::big-size(64)>>}
 
+
   @doc section: :type
-  @spec time(%{:fraction => integer(), :seconds => integer(), optional(any()) => any()}) ::
-          {116, <<_::64>>}
+  @doc """
+  Char: Encode a character as 32 bit.
+
+  In OSC 1.0, the Char type is optional and is used to encode an ascii character in 32 bits.
+
+  This function accepts a map `%{char: value}` as the first parameter, where value can be a
+  - single character string (e.g. "A")
+  - single char ~c"A"
+  - an integer representing an ASCII char.
+
+  ## Example
+  All of the following are equivalent for the ASCII 'A' character:
+  ```
+  iex> %{char: "A"} |> OSCx.Encoder.char()
+  {99, <<0, 0, 0, 65>>}
+
+  iex-> %{char: ~c"A"} |> OSCx.Encoder.char()
+  {99, <<0, 0, 0, 65>>}
+
+  iex-> %{char: 'A'} |> OSCx.Encoder.char()
+  {99, <<0, 0, 0, 65>>}
+
+  iex-> %{char: 65} |> OSCx.Encoder.char()
+  {99, <<0, 0, 0, 65>>}
+  ```
+  """
+  def char(%{char: value}) when is_integer(value), do: {?c, <<value::utf32>>}
+  def char(%{char: value}) when is_binary(value) and byte_size(value) == 1, do: {?c, <<:binary.first(value)::utf32>>}
+  def char(%{char: value}) when is_list(value) and length(value) == 1, do: {?c, <<List.first(value)::utf32>>}
+
+  @doc section: :types
   @doc """
   OSC-timetag: 64 bit, big-endian, fixed-point floating point number
 
@@ -235,9 +294,24 @@ defmodule OSCx.Encoder do
 
   @doc section: :type
   @doc """
-  32-bit float: IEEE floating point encoding, big-endian
+  Float: 32-bit big-endian IEEE 754 floating point number, or 64 bit (“double”) IEEE 754 floating point number.
+
+  This function encodes Elixir's float types as follows:
+
+  | Type           | Lower value | Upper value |
+  | -------------- | ----------- | ----------- |
+  | 32 bit float | 1.175494351e-38 | 3.402823466e+38 |
+  | 64 bit float | 2.2250738585072014e-308 | 1.7976931348623158e+308 |
+
+  Note the ranges in this table are approximate.
   """
-  def float(value) when is_float(value), do: {?f, <<value::big-float-size(32)>>}
+  @default_float_range_lower 1.175494351e-38
+  @default_float_range_upper 3.4028234663852886e38
+  @default_double_range_lower 2.2250738585072014e-308
+  @default_double_range_upper 1.7976931348623158e+308
+  def float(value) when is_float(value) and value <= @default_float_range_upper and value >= @default_float_range_lower, do: {?f, <<value::big-float-size(32)>>}
+  def float(value) when is_float(value) and value <= @default_double_range_upper and value >= @default_double_range_lower, do: {?d, <<value::big-float-size(64)>>}
+
 
   @doc section: :type
   @doc """

@@ -33,17 +33,19 @@ iex> %OSCx.Message{arguments: [2, 440.5, "phaser"]}
 ``` 
 The following table shows how these and other Elixir types are encoded to OSC types:
 
-| Elixir type      | Example argument value      | OSC type                                   | OSC spec version |
-| ---------------- | --------------------------- | ------------------------------------------ | ---------------- |
-| Integer (32 bit) | `2`                         | 32-bit integer                             | 1.0+ required    |
-| Integer (64 bit) | `9_223_372_036_854_775_800` | 64-bit big-endian two’s complement integer | 1.0 non-standard |
-| Float (32 bit)   | `440.5`                     | 32-bit float                               | 1.0+ required    |
-| String           | `"phaser"`                  | String                                     | 1.0+ required    |
-| Bitstring        | `<<1, 126, 40, 33>>`        | Blob                                       | 1.0+ required    |
-| Atom             | `:loud`                     | Symbol                                     | 1.0 non-standard |
-| Map with `:seconds` and `:fraction` keys | `%{seconds: _, fraction: _ }` | Time tag         | 1.1+ required    |
-| Map with `:midi` key | `%{midi: _ }`           | 4 byte MIDI message                        | 1.0 non-standard |
-| List             | `[1, 2, 3]`                 | Array                                      | 1.0 non-standard |
+| Elixir type      | Example argument value      | OSC type                                   | OSC spec version  |
+| ---------------- | --------------------------- | ------------------------------------------ | ----------------- |
+| Integer (32 bit) | `2`                         | 32-bit integer                             | 1.0+ required     |
+| Integer (64 bit) | `9_223_372_036_854_775_800` | 64-bit big-endian two’s complement integer | 1.0+ non-standard |
+| Float (32 bit)   | `440.5`                     | 32-bit float                               | 1.0+ required     |
+| Float (64 bit)   | `2.2250738585072014e-308`   | 64-bit float                               | 1.0+ non-standard |
+| String           | `"phaser"`                  | String                                     | 1.0+ required     |
+| Bitstring        | `<<1, 126, 40, 33>>`        | Blob                                       | 1.0+ required     |
+| Atom             | `:loud`                     | Symbol                                     | 1.0+ non-standard |
+| Map with `:seconds` and `:fraction` keys | `%{seconds: _, fraction: _ }` | Time tag         | 1.1+ required     |
+| Map with `:midi` key | `%{midi: _ }`           | 4 byte MIDI message                        | 1.0+ non-standard |
+| Map with `:char` key | `%{char: _}`            | ASCII char (32-bit)                        | 1.0+ non-standard |
+| List             | `[1, 2, 3]`                 | Array                                      | 1.0+ non-standard |
 
 ### 'Special' types
 There are also some types that are encoded differently as they don't carry a variable value like those above:
@@ -83,6 +85,7 @@ Decoding is simply the reverse of the above, where the following OSC type become
 - Symbol -> Atom
 - MIDI -> `%{midi: value}`
 - Time tag -> `%{seconds: seconds, fraction: fraction}`
+- ASCII Char -> `%{char: value}` where value will be a charlist
 - Array -> List
 
 #### Symbols, Atoms and Strings

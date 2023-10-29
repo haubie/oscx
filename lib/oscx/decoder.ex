@@ -21,8 +21,10 @@ defmodule OSCx.Decoder do
   | s        | 115            | String          | 1.0+ required    |
   | b        | 98             | Blob            | 1.0+ required    |
   | h        | 104            | 64-bit big-endian two’s complement integer | 1.0 non-standard |
+  | d        | 100            | 64 bit (“double”) IEEE 754 floating point number | 1.0 non-standard |
   | m        | 109            | 4 byte MIDI message | 1.0 non-standard |
   | t        | 116            | OSC time tag    | 1.1+ required    |
+  | c        | 99             | An ascii character, sent as 32 bits | 1.0 non-standard |
   | S        | 83             | Symbol          | 1.0 non-standard    |
   | [ and ]  | 91 and 93      | List            | 1.0 non-standard    |
 
@@ -87,7 +89,9 @@ defmodule OSCx.Decoder do
   | s        | 115            | String          | 1.0+ required    |
   | b        | 98             | Blob            | 1.0+ required    |
   | h        | 104            | 64-bit big-endian two’s complement integer | 1.0 non-standard |
+  | d        | 100            | 64 bit (“double”) IEEE 754 floating point number | 1.0 non-standard |
   | m        | 109            | 4 byte MIDI message | 1.0 non-standard |
+  | c        | 99             | An ascii character, sent as 32 bits | 1.0 non-standard |
   | t        | 116            | OSC time tag    | 1.1+ required    |
   | S        | 83             | Symbol          | 1.0 non-standard    |
   | [ and ]  | 91 and 93      | List            | 1.0 non-standard    |
@@ -103,27 +107,33 @@ defmodule OSCx.Decoder do
   def decode_arg([tag | rest_tags]=_tag_list, arg_data, acc) do
     {decoded_data, rest_arg_data, rest_tags} =
       case tag do
+        # OSC Spec v1.0 required types
         ?i -> Decoder.integer(arg_data, rest_tags)
         ?f -> Decoder.float(arg_data, rest_tags)
         ?s -> Decoder.string(arg_data, rest_tags)
         ?b -> Decoder.blob(arg_data, rest_tags)
+
+        # OSC Spec v1.0 optional types
         ?h -> Decoder.integer_64bit(arg_data, rest_tags)
+        ?d -> Decoder.float_64bit(arg_data, rest_tags)
         ?m -> Decoder.midi(arg_data, rest_tags)
         ?t -> Decoder.time(arg_data, rest_tags)
         ?S -> Decoder.symbol(arg_data, rest_tags)
         ?[ -> Decoder.list(arg_data, rest_tags)
+        ?c -> Decoder.char(arg_data, rest_tags)
+
+        # OSC Spec v1.1 required types
         ?T -> Decoder.special_tag(arg_data, rest_tags, true)
         ?F -> Decoder.special_tag(arg_data, rest_tags, false)
         ?N -> Decoder.special_tag(arg_data, rest_tags, nil)
         ?I -> Decoder.special_tag(arg_data, rest_tags, :impulse)
+
+        # Unrecognised types will be dropped
         _other -> {:other, arg_data, rest_tags}
       end
 
     decode_arg(rest_tags, rest_arg_data, [decoded_data | acc])
   end
-
-
-
 
   @doc section: :type
   @doc """
@@ -150,6 +160,27 @@ defmodule OSCx.Decoder do
   """
   def special_tag(arg_data, rest_tags, tag_value), do: {tag_value, arg_data, rest_tags}
 
+  @doc section: :type
+  @doc """
+  Decodes a 32-bit char value.
+
+  Returns it as an Elixir charlist, e.g.:application
+  ```
+  # This is the char 'a' in 32-bit
+  iex> binary = <<0, 0, 0, 97>>
+  <<0, 0, 0, 97>>
+
+  iex> {char, _rem_bin, _rem_tags} = OSCx.Decoder.char(binary, [])
+  {~c"a", "", []}
+
+  iex> char
+  ~c"a"
+  ```
+  """
+  def char(binary, rest_tags) do
+    <<char::utf32, rest::binary>> = binary
+    {[char], rest, rest_tags}
+  end
 
   @doc section: :type
   @doc """
@@ -192,6 +223,23 @@ defmodule OSCx.Decoder do
   """
   def float(binary, rest_tags) do
     <<float::big-float-size(32), rest::binary>> = binary
+    {float, rest, rest_tags}
+  end
+
+
+  @doc section: :type
+  @doc """
+  Decodes a 64-bit float from the head of the binary.
+
+  Returns a tuple with the first element the float value, and the second element the remaining binary data.
+
+  Returns a tuple with the:
+  - first element: the float value
+  - second element: the remaining binary data
+  - third element: the rest of the type tags to be processed.
+  """
+  def float_64bit(binary, rest_tags) do
+    <<float::big-float-size(64), rest::binary>> = binary
     {float, rest, rest_tags}
   end
 
