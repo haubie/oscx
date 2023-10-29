@@ -179,7 +179,7 @@ defmodule OSCx.Decoder do
   """
   def char(binary, rest_tags) do
     <<char::utf32, rest::binary>> = binary
-    {[char], rest, rest_tags}
+    {%{char: [char]}, rest, rest_tags}
   end
 
   @doc section: :type
