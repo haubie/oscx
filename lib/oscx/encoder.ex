@@ -227,13 +227,13 @@ defmodule OSCx.Encoder do
   If only a 3 byte message is provided (e.g. a status byte followed by two data bytes), a port id of <<0>> is prepended to make 4 bytes.
 
   The MIDI value can be in any of these forms:
-  - Binary <<153, 77, 63>>
-  - List [153, 77, 63]
+  - Binary, e.g. `<<153, 77, 63>>`
+  - List, e.g. `[153, 77, 63]`
   - An Elixir type which can be directly encoded to 4-byte binary value
 
-  Key:
-  MSB = Most significant byte
-  LSB = Least singificant byte
+  ### Key:
+  - MSB = Most significant byte
+  - LSB = Least singificant byte
   """
   def midi(%{midi: value}) when is_binary(value) and byte_size(value) == 3, do: {?m, <<0>> <> value} # might be wrong approach, prepending 0
   def midi(%{midi: value}) when is_binary(value) and byte_size(value) == 4, do: {?m, value}
@@ -265,9 +265,9 @@ defmodule OSCx.Encoder do
   In OSC 1.0, the Char type is optional and is used to encode an ascii character in 32 bits.
 
   This function accepts a map `%{char: value}` as the first parameter, where value can be a
-  - single character string (e.g. "A")
-  - single char ~c"A"
-  - an integer representing an ASCII char.
+  - single character string, e.g. `"A"`
+  - single charlist, e.g. `~c"A"` or `'A'`
+  - an integer representing an ASCII char, e.g. `65`.
 
   ## Example
   All of the following are equivalent for the ASCII 'A' character:
@@ -333,12 +333,12 @@ defmodule OSCx.Encoder do
   Note the ranges in this table are approximate.
   """
   @default_float_range_lower 1.175494351e-38
-  @default_float_range_upper 3.4028234663852886e38
+  @default_float_range_upper 3.4028234663852885981170418348451692544e+38
   @default_double_range_lower 2.2250738585072014e-308
   @default_double_range_upper 1.7976931348623158e+308
-  def float(value) when is_float(value) and value <= @default_float_range_upper and value >= @default_float_range_lower, do: {?f, <<value::big-float-size(32)>>}
-  def float(value) when is_float(value) and value <= @default_double_range_upper and value >= @default_double_range_lower, do: {?d, <<value::big-float-size(64)>>}
-
+  def float(value) when is_float(value) and abs(value) == 0.0, do: {?f, <<value::big-float-size(32)>>} # Zero float, e.g. 0.0
+  def float(value) when is_float(value) and abs(value) <= @default_float_range_upper and abs(value) >= @default_float_range_lower, do: {?f, <<value::big-float-size(32)>>}
+  def float(value) when is_float(value) and abs(value) <= @default_double_range_upper and abs(value) >= @default_double_range_lower, do: {?d, <<value::big-float-size(64)>>}
 
   @doc section: :type
   @doc """

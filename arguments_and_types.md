@@ -16,7 +16,7 @@ Arguments are typed. In an OSC message, the type of an argument is listed in the
 
 OSC is encoded into 4-byte chunks. That is Ok for 32-bit data types are they are already of a 4-byte length, but for arbintary length data (like strings or blobs) padding with some null bytes may be needed to ensure each chunk is 4 bytes. 
 
-The following diagram shows how each chunk is kept at exactly 4 bytes length, by adding padding where necesary:
+The following diagram shows how each chunk is kept at exactly 4 bytes length, by adding padding where necessary:
 ```
 Chunk 1: [D] [D] [D] [D]
 Chunk 2: [D] [D] [D] [_]
@@ -43,10 +43,14 @@ The following table shows how these and other Elixir types are encoded to OSC ty
 | Bitstring        | `<<1, 126, 40, 33>>`        | Blob                                       | 1.0+ required     |
 | Atom             | `:loud`                     | Symbol                                     | 1.0+ non-standard |
 | Map with `:seconds` and `:fraction` keys | `%{seconds: _, fraction: _ }` | Time tag         | 1.1+ required     |
-| Map with `:midi` key | `%{midi: _ }`           | 4 byte MIDI message                        | 1.0+ non-standard |
-| Map with `:char` key | `%{char: _}`            | ASCII char (32-bit)                        | 1.0+ non-standard |
+| Map with `:midi` key | `%{midi: [153, 77, 63]}` | 4 byte MIDI message                        | 1.0+ non-standard |
+| Map with `:char` key | `%{char: 'A'}`            | ASCII char (32-bit)                        | 1.0+ non-standard |
 | Map with `:rgba` key with list of RGBA integers | `%{rgba: [255, 255, 90, 20]}` | 4-bit RGBA colour                          | 1.0+ non-standard |
 | List             | `[1, 2, 3]`                 | Array                                      | 1.0+ non-standard |
+
+Note that the:
+- MIDI map can accept values as Lists (e.g. `%{midi: [153, 77, 63]}`), Binary (e.g. `%{midi: <<153, 77, 63>>}`) or other Elixir type that can be encoded to a 4-byte binary value, see: `OSCx.Encoder.midi/1`
+- The Char map can accept a value as a String (e.g. `%{char: "A"}`), Charlist (`%{char: ~c"A"}` or `%{char: 'A'}`) or Integer (e.g. `%{char: 65}`). See: `OSCx.Encoder.char/1`.
 
 ### 'Special' types
 There are also some types that are encoded differently as they don't carry a variable value like those above:

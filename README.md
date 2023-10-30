@@ -32,41 +32,33 @@ For more detailed information see [https://opensoundcontrol.stanford.edu/](https
 Below is a summary of key OSC concepts:
 
 - #### Messages
-  OSC messages are the basic unit of communication in OSC. They consist of an **address**, a **type tag**, and zero or more **arguments**.
+  OSC messages are the basic unit of communication in OSC. They consist of an **address**, a **type tag**, and zero or more arguments:
   - The address is a string that identifies the target of the message, such as `/my_synth/volume` or `/my_controller/button_1`. This is very similar to the resource string or path seen in URLs.
-  - The type tag specifies the type of the arguments, which can be integers, floats, strings, or blobs of binary data.
+  - The type tag specifies the type of the arguments, such as integers, floats, strings, or blobs of binary data. For more information see [arguments and types](arguments_and_types.md).
 
-  See `OSCx.Message`
+  See `OSCx.Message`.
 
 - #### Bundles
   OSC bundles are a way to send multiple OSC messages in a single packet. This can be useful for improving performance or reducing bandwidth usage.
 
-  See `OSCx.Bundle`
+  See `OSCx.Bundle`.
 
 - #### Servers and Clients
   OSC servers listen for incoming OSC messages and clients send OSC messages. An application can be both a server and a client at the same time.
 
-  See `OSCx.encode/1` and `OSCx.decode/1`
+  See `OSCx.encode/1` and `OSCx.decode/1` as well as the [OSCx Livebook tour](livebook/oscx_tour.livemd) which demonstrates sending and receiving OSC messages.
 
 - #### Ports
   Although OSC is neutral of the transport layer, OSC messages are generally sent and received on UDP ports.
+
+  See the [OSCx Livebook tour](livebook/oscx_tour.livemd) which demonstrates the use of UDP.
 
 - #### Timetags
   OSC timetags can be used to synchronize OSC messages with other events. This is essential for applications such as audio and video production.
   
   OSC uses the same format as 64-bit Internet NTP timestamps, where the first 32 bits specify the number of seconds since midnight on January 1, 1900, and the last 32 bits specify fractional parts of a second to a precision of about 200 picoseconds. 
 
-  See `OSCx.Encoder.time/1`
-
-## OSC messages
-OSC messages are made up of three parts:
-1. **address** which represents the function you want to control starting with a forward slash e.g. `/status`
-2. **tag type string** which lists the data types in the data payload, in the order they occur
-3. **data payload** which could be any of the OSC types.
-
-OSC messages can be transmitted over a variety of networks.
-
-See the `OSCx.Message` module for more information.
+  See `OSCx.Encoder.time/1`.
 
 ## Installation
 
