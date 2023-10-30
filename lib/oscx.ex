@@ -12,7 +12,8 @@ defmodule OSCx do
   You can learn more about OSC and it's concepts and how to use this library by:
   - accessing the [README file](README.md)
   - taking the [Livebook tour](livebook/oscx_tour.livemd)
-  - reading the `OSCx.Message` or `OSCx.Bundle` module documentation.
+  - reading the `OSCx.Message` or `OSCx.Bundle` module documentation
+  - reading about OSC [arguments and types](arguments_and_types.md)
 
   ## Example
   To encode a basic message:
@@ -36,15 +37,31 @@ defmodule OSCx do
   """
 
   @doc """
-  Encodes an `%OSCx.Message{}` or `%OSCx.Bundle{}` structs as OSC binary data.
+  Encodes an `%OSCx.Message{}` or `%OSCx.Bundle{}` struct as OSC binary data.
 
   ## Example
   ```
+  # Encode a message
   iex> %OSCx.Message{address: "/status", arguments: [1]} |> OSCx.encode()
   <<47, 115, 116, 97, 116, 117, 115, 0, 44, 105, 0, 0, 0, 0, 0, 1>>
+
+  # Encode a bundle with a  essage
+  iex> OSCx.Bundle.new(
+    elements: [OSCx.Message.new()],
+    time: %{seconds: 1, fraction: 100}
+    )
+    |> OSCx.encode()
+  [
+    <<35, 98, 117, 110, 100, 108, 101, 0>>,
+    {116, <<0, 0, 0, 1, 0, 0, 0, 100>>},
+    [<<0, 0, 0, 8, 47, 0, 0, 0, 44, 0, 0, 0>>]
+  ]
   ```
   """
-  def encode(message) when is_struct(message, OSCx.Message), do: OSCx.Message.encode(message)
+  def encode(message_or_bundle) when is_struct(message_or_bundle, OSCx.Message), do: OSCx.Message.encode(message_or_bundle)
+  def encode(message_or_bundle) when is_struct(message_or_bundle, OSCx.Bundle), do: OSCx.Bundle.encode(message_or_bundle)
+  def encode(_message_or_bundle), do: raise("Not a Message or Bundle. Only %OSCx.Messages{} and %OSCx.Bundles{} can be encoded.")
+
 
   @doc """
   Decodes a binary OSC Message or Bundle.
@@ -58,5 +75,6 @@ defmodule OSCx do
   %OSCx.Message{address: "/status", arguments: [0]}
   ```
   """
-  def decode(message) when is_binary(message), do: OSCx.Message.decode(message)
+  def decode(<<35, 98, 117, 110, 100, 108, 101, 0, _rest::binary>>=message_or_bundle) when is_binary(message_or_bundle), do: OSCx.Bundle.decode(message_or_bundle)
+  def decode(message_or_bundle) when is_binary(message_or_bundle), do: OSCx.Message.decode(message_or_bundle)
 end

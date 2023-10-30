@@ -107,18 +107,6 @@ defmodule OSCx.Message do
   Optionally takes a keyword list as it's first parameter, recognising any of the following keys:
   - `address:` the OSC adress string, for example `address: "/synth/play_note"`
   - `arguments:` a list of arguments, for example `arguments: [440.5]`
-  - `tag_types:` used for 'special' types which are encoded only in OSCs tag type string, rather than as an argument:
-
-    | Elixir type | OSC string tag type | OSC character |
-    | true        | True                | T             |
-    | false       | False               | F             |
-    | nil         | Null                | N             |
-    | :null       | Null                | N             |
-    | :impulse    | Impulse             | I             |
-
-    Example: `tag_types: [:impulse]`
-
-  Note that tag_types is only for 'special' types above. Specifying types for arguments is not needed as this library looks after that when encoding the OSC message.
 
   ## Example
   ```
@@ -127,7 +115,6 @@ defmodule OSCx.Message do
   %OSCx.Message{
     address: "/synth/play_chord",
     arguments: [440.0, 445.0, 450.0],
-    tag_types: []
   }
   ```
   """

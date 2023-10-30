@@ -8,8 +8,7 @@ This is an *early version* which is still under development.
 
 Status:
 - Maintains a similar API to the older osc_ex library, so it should be a close to drop-in replacement
-- Currently message encoding and decoding should work
-- Bundles have not yet been implemented but are the next priority.
+- Currently message encoding and decoding should work.
 
 ## About this library
 OSCx is an Elixir library for encoding and decoding Open Sound Control (OSC) messages.
