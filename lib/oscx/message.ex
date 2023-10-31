@@ -13,7 +13,7 @@ defmodule OSCx.Message do
   - Bitstring (binary), e.g. `<<10, 123, 34, 56>>` (encodes to an OSC Blob)
   - Atom, e.g. `:tremelo` (encodes to an OSC Symbol)
   - `%{midi: value}` (encodes the the *4-byte* value to an OSC MIDI type)
-  - `%{seconds: seconds, fraction: fraction}` (encodes to an OSC Time tag)
+  - `%{seconds: seconds, fraction: fraction}` or `%{time: value}` where `value` is a 64-bit integer (encodes to an OSC Time tag)
   - `%{rgba: [r, g, b, a]}` (encodes to an RGBA colour where `r`, `g`, `b` and `a` are all integers)
   - List, e.g. `[1, 2, 3]` (encodes to an OSC Array)
   - `true` which encodes to the OSC type: True

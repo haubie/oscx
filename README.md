@@ -3,29 +3,27 @@
 [![Documentation](http://img.shields.io/badge/hex.pm-docs-green.svg?style=flat)](https://hexdocs.pm/oscx)
 [![Package](https://img.shields.io/hexpm/v/oscx.svg)](https://hex.pm/packages/oscx)
 
-## DRAFT - Still under developement
-This is an *early version* which is still under development.
-
-Status:
-- Maintains a similar API to the older osc_ex library, so it should be a close to drop-in replacement
-- Currently message encoding and decoding should work.
-
 ## About this library
 OSCx is an Elixir library for encoding and decoding Open Sound Control (OSC) messages.
 
 OSC is a flexible protocol that can be used for a wide variety of real-time tasks, such as controlling multimedia devices.
 
-The API of this module is based on the older [osc_ex](https://github.com/camshaft/osc_ex) library.
+The API of this module is based on the older [osc_ex](https://github.com/camshaft/osc_ex) library. It was designed to be close to a 'drop in' replacement.
 
 Note that this library is deliberately minimilistic and no network transport or process logic is included.
 
 ## What is Open Sound Control (OSC)?
 OSC is a network protocol for real-time communication between computers and other digital devices.
 It is used to control sound synthesizers, lighting systems, and other multimedia devices.
-OSC is a lightweight and flexible protocol that is well-suited for real-time applications.
+OSC is a lightweight and flexible that is well-suited for real-time applications.
 OSC is an open standard, which means that anyone can develop software or hardware that supports OSC.
 
 For more detailed information see [https://opensoundcontrol.stanford.edu/](https://opensoundcontrol.stanford.edu/index.html).
+
+### Protocol or content format?
+Because OSC does not define features typical of *protocols* such as command-response patterns, error handling or negotiation, it may be more accurate to describe OSC as a *content format*, like JSON or XML. An application that uses OSC only needs to be able to parse and encode to and from the OSC format.
+
+None the less, its versatility makes it useful and why it's incorporated into music performance sofware such as [SuperCollider](https://supercollider.github.io/).
 
 ## OSC concepts
 Below is a summary of key OSC concepts:
@@ -57,7 +55,7 @@ Below is a summary of key OSC concepts:
   
   OSC uses the same format as 64-bit Internet NTP timestamps, where the first 32 bits specify the number of seconds since midnight on January 1, 1900, and the last 32 bits specify fractional parts of a second to a precision of about 200 picoseconds. 
 
-  See `OSCx.Encoder.time/1`.
+  See `OSCx.Encoder.time/1` and [Time tags and synchronisation](time_tags.md).
 
 ## Installation
 

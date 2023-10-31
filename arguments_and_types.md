@@ -42,7 +42,7 @@ The following table shows how these and other Elixir types are encoded to OSC ty
 | String           | `"phaser"`                  | String                                     | 1.0+ required     |
 | Bitstring        | `<<1, 126, 40, 33>>`        | Blob                                       | 1.0+ required     |
 | Atom             | `:loud`                     | Symbol                                     | 1.0+ non-standard |
-| Map with `:seconds` and `:fraction` keys | `%{seconds: _, fraction: _ }` | Time tag         | 1.1+ required     |
+| Map with `:seconds` and `:fraction` keys or `:time` key | `%{seconds: _, fraction: _ }` or `%{time: value}` | Time tag         | 1.1+ required     |
 | Map with `:midi` key | `%{midi: [153, 77, 63]}` | 4 byte MIDI message                        | 1.0+ non-standard |
 | Map with `:char` key | `%{char: 'A'}`            | ASCII char (32-bit)                        | 1.0+ non-standard |
 | Map with `:rgba` key with list of RGBA integers | `%{rgba: [255, 255, 90, 20]}` | 4-bit RGBA colour                          | 1.0+ non-standard |
@@ -51,6 +51,10 @@ The following table shows how these and other Elixir types are encoded to OSC ty
 Note that the:
 - MIDI map can accept values as Lists (e.g. `%{midi: [153, 77, 63]}`), Binary (e.g. `%{midi: <<153, 77, 63>>}`) or other Elixir type that can be encoded to a 4-byte binary value, see: `OSCx.Encoder.midi/1`
 - The Char map can accept a value as a String (e.g. `%{char: "A"}`), Charlist (`%{char: ~c"A"}` or `%{char: 'A'}`) or Integer (e.g. `%{char: 65}`). See: `OSCx.Encoder.char/1`.
+- The Time tag map can be in the format of either:
+  - `%{seconds: seconds, fraction: fraction}` where `seconds` and `fraction` are 32-bit integers
+  - `%{time: value}` where `value` is a 64-bit integer.
+  - `%{time: :immediate}` to signal "process immediately"
 
 ### 'Special' types
 There are also some types that are encoded differently as they don't carry a variable value like those above:
@@ -89,7 +93,7 @@ Decoding is simply the reverse of the above, where the following OSC type become
 - Blob -> Bitstring (binary)
 - Symbol -> Atom
 - MIDI -> `%{midi: value}`
-- Time tag -> `%{seconds: seconds, fraction: fraction}`
+- Time tag -> `%{time: value, seconds: seconds, fraction: fraction}` where `value` is a 64-bit integer and `seconds` and `fraction` are 32-bit integers extracted from the value
 - ASCII Char -> `%{char: value}` where value will be a charlist
 - RGBA colour -> `%{rgba: [r, g, b, a]}` where there is an integer value for (r)ed, g(reen), b(lue) and a(lpha) colour channels.
 - Array -> List
@@ -108,3 +112,4 @@ The types of **True**, **False**, **Null**, **Impulse** will be decoded to `true
 ```
 ## More information
 - [README file](README.md)
+- [Time tags and synchronisation](time_tags.md)

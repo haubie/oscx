@@ -95,7 +95,7 @@ defmodule OSCx.Encoder do
   Guard to test if a time map has been provided.
   A time map is in the following format: `%{seconds: seconds, fraction: fraction}`.
   """
-  defguard is_time_map(value) when is_map(value) and is_map_key(value, :seconds) and is_map_key(value, :fraction)
+  defguard is_time_map(value) when is_map(value) and (is_map_key(value, :time) or (is_map_key(value, :seconds) and is_map_key(value, :fraction)))
 
   @doc section: :helper
   @doc """
@@ -254,7 +254,7 @@ defmodule OSCx.Encoder do
   """
   @default_integer_size 2_147_483_647 # 2^31 rounded
   @two_complement_integer_size 9_223_372_036_854_775_808 # 2^63 rounded
-  def integer(value) when is_integer(value) and abs(value) < @default_integer_size, do: {?i, <<value::big-size(32)>>}
+  def integer(value) when is_integer(value) and abs(value) <= @default_integer_size, do: {?i, <<value::big-size(32)>>}
   def integer(value) when is_integer(value) and abs(value) < @two_complement_integer_size, do: {?h, <<value::big-size(64)>>}
 
 
@@ -312,12 +312,31 @@ defmodule OSCx.Encoder do
   @doc """
   OSC-timetag: 64 bit, big-endian, fixed-point floating point number
 
-  Takes a map in the format `%{seconds: seconds, fraction: fraction}`.
+  Takes a map in the format of either:
+  - `%{seconds: seconds, fraction: fraction}` where `seconds` and `fraction` are 32-bit integers
+  - `%{time: value}` where `value` is a 64-bit integer.
 
+  ## Immediate time
+  OSC can encode a time tag which means "process immediately". This is a time tag with a value of 63 zero bits followed by a one in the least signifigant bit.
+
+  You can set an immediate time by using the `:immediate` atom as follows:
+  ```
+  %{time: :immediate}
+  ```
+
+  ## OSC time tag specification
   The OSC Specification defines a time tag as a 64-bit fixed-point number that represents a time in seconds since midnight on January 1, 1900.
+
   The first 32 bits of the timetag represent the number of seconds, and the last 32 bits represent fractional parts of a second to a precision of about 200 picoseconds.
+
+  This is the representation used by Internet NTP timestamps.
   """
   def time(%{seconds: seconds, fraction: fraction}), do: {?t, <<seconds::big-size(32), fraction::big-size(32)>>}
+  def time(%{time: :immediate}), do: {?t, <<0, 0, 0, 0, 0, 0, 0, 1>>}
+  def time(%{time: value}) when is_integer(value) and abs(value) > @default_integer_size and abs(value) < @two_complement_integer_size, do: {?t, <<value::big-size(64)>>}
+
+
+
 
   @doc section: :type
   @doc """

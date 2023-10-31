@@ -344,16 +344,20 @@ defmodule OSCx.Decoder do
 
   The time tag map is in the format:
   ```
-  %{seconds: seconds, fraction: fraction}
+  %{time: value, seconds: seconds, fraction: fraction}
   ```
   Where:
-  - `seconds` is the number of seconds since midnight on January 1, 1900
-  - `fraction` is the fractional part of a second to a precision of about 200 picoseconds.
-  Both of these are 32-bit integers.
+  - `time` is the full 64-bit integer time code
+  - `seconds` is the number of seconds since midnight on January 1, 1900 (32-bit integer)
+  - `fraction` is the fractional part of a second to a precision of about 200 picoseconds (32-bit integer).
+
+  The 32-bit `:seconds` and `:fraction` have been extracted from the 64-bit `:time` value, so you can pattern match on whatever is most useful in the context of your application.
   """
   def time(binary, rest_tags) do
-    <<seconds::big-size(32), fraction::big-size(32), rest::binary>> = binary
-    {%{seconds: seconds, fraction: fraction}, rest, rest_tags}
+    <<time_part::binary-size(8), rest::binary>> = binary
+    <<seconds::big-size(32), fraction::big-size(32), _ignore::binary>> = time_part
+    <<time_code::big-size(64), _ignore::binary>> = time_part
+    {%{time: time_code, seconds: seconds, fraction: fraction}, rest, rest_tags}
   end
 
   @doc section: :type

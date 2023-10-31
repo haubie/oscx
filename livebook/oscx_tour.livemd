@@ -11,15 +11,13 @@ Mix.install([{:oscx, path: "../../oscx"}])
 Create aliases for Message, Encoder and Decoder.
 
 ```elixir
-alias OSCx.Message
-alias OSCx.Encoder
-alias OSCx.Decoder
+alias OSCx.{Message, Encoder, Decoder}
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-OSCx.Decoder
+[OSCx.Message, OSCx.Encoder, OSCx.Decoder]
 ```
 
 ## Create an OSC message
@@ -78,7 +76,7 @@ Once Protokol is installed, load it and click the 'OSC' tab. Make sure **Enabled
 
 ### Open a UDP port
 
-Erlang and therefore Elixir comes with the `:gen_udp` library for opening UDP ports and sending and recieving messages.
+Erlang and therefore Elixir comes with the `:gen_udp` library for opening UDP ports and sending and receiving messages.
 
 Lets use it to send an OSC message to [Protokol](https://hexler.net/protokol). By default, Protokol listens on port `8000` but you can change this if necessary.
 
@@ -225,7 +223,7 @@ The OSC Spec requires a 4-byte MIDI message, defined as: port id, status byte, d
 
 However, MIDI messages are predominatly consist of 3-bytes (a status byte, followed by 2 data bytes). If a 3 byte MIDI message is given, OSCx will prepend a port ID of `<<0>>` to make up the 1 byte difference.
 
-If the OSC server (receiver) supports it (Protokol doens't), RGBA colours can be sent as follows:
+If the OSC server (receiver) supports it (Protokol doesn't), RGBA colours can be sent as follows:
 
 ```elixir
 bin_osc_msg =
@@ -244,9 +242,9 @@ bin_osc_msg =
 :ok
 ```
 
-## Recieving OSC messages
+## Receiving OSC messages
 
-Using OSC to send and recieve messages from audio software is a common use-case.
+Using OSC to send and receive messages from audio software is a common use-case.
 
 This example assumes SuperCollider is installed and running on the same machine as this Livebook.
 
