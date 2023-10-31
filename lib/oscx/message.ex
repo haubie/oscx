@@ -150,7 +150,7 @@ defmodule OSCx.Message do
     address <> tag_type_string <> arguments
   end
 
-  @spec decode(any()) :: Message
+  @spec decode(binary()) :: %OSCx.Message{address: binary(), arguments: list()}
   @doc """
   Decodes a binary OSC message.
 

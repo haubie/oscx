@@ -57,6 +57,9 @@ Below is a summary of key OSC concepts:
 
   See `OSCx.Encoder.time/1` and [Time tags and synchronisation](time_tags.md).
 
+## Examples
+For some simple examples of using this library, see [Examples](examples.md) or the [OSCx Livebook tour](livebook/oscx_tour.livemd).
+
 ## Installation
 
 ### Adding it to your Elixir project
