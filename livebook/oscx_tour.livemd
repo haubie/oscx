@@ -3,7 +3,7 @@
 # OSCx tour
 
 ```elixir
-Mix.install([{:oscx, path: "../../oscx"}])
+Mix.install([{:oscx, "~> 0.1.1"}])
 ```
 
 ## Setup

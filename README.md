@@ -68,14 +68,14 @@ The package can be installed by adding `oscx` to your list of dependencies in `m
 ```elixir
 def deps do
   [
-    {:oscx, "~> 0.1.0"}
+    {:oscx, "~> 0.1.1"}
   ]
 end
 ```
 
 ### Using within Livebook and IEx
 ```elixir
-Mix.install([{:oscx, "~> 0.1.0"}])
+Mix.install([{:oscx, "~> 0.1.1"}])
 ```
 
 Documentation can be found at <https://hexdocs.pm/oscx>.

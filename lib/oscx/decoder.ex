@@ -195,7 +195,7 @@ defmodule OSCx.Decoder do
   - third element: the rest of the type tags to be processed.
   """
   def integer(binary, rest_tags) do
-    <<integer::big-size(32), rest::binary>> = binary
+    <<integer::signed-big-size(32), rest::binary>> = binary
     {integer, rest, rest_tags}
   end
 
@@ -209,7 +209,7 @@ defmodule OSCx.Decoder do
   - third element: the rest of the type tags to be processed.
   """
   def integer_64bit(binary, rest_tags) do
-    <<integer::big-size(64), rest::binary>>=binary
+    <<integer::signed-big-size(64), rest::binary>>=binary
     {integer, rest, rest_tags}
   end
 

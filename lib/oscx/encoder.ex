@@ -254,8 +254,8 @@ defmodule OSCx.Encoder do
   """
   @default_integer_size 2_147_483_647 # 2^31 rounded
   @two_complement_integer_size 9_223_372_036_854_775_808 # 2^63 rounded
-  def integer(value) when is_integer(value) and abs(value) <= @default_integer_size, do: {?i, <<value::big-size(32)>>}
-  def integer(value) when is_integer(value) and abs(value) < @two_complement_integer_size, do: {?h, <<value::big-size(64)>>}
+  def integer(value) when is_integer(value) and abs(value) <= @default_integer_size, do: {?i, <<value::signed-big-size(32)>>}
+  def integer(value) when is_integer(value) and abs(value) < @two_complement_integer_size, do: {?h, <<value::signed-big-size(64)>>}
 
 
   @doc section: :type
